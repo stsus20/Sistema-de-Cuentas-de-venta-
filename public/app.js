@@ -4,10 +4,12 @@ const fmt = value => new Intl.NumberFormat('es-MX', { style: 'currency', currenc
 const dateFmt = value => new Intl.DateTimeFormat('es-MX', { dateStyle: 'medium' }).format(new Date(value));
 let token = localStorage.getItem('cuentas_token');
 let clients = [];
+let historyClients = [];
 let selectedId = null;
 let detail = null;
 let activeTab = 'purchases';
 let movementType = 'purchase';
+let detailReadonly = false;
 
 const savedTheme = localStorage.getItem('cuentas_theme');
 if (savedTheme === 'dark' || (!savedTheme && matchMedia('(prefers-color-scheme: dark)').matches)) document.documentElement.dataset.theme = 'dark';
@@ -48,6 +50,40 @@ async function loadClients(query = '') {
   try { clients = await api(`/api/clientes?q=${encodeURIComponent(query)}`); renderClients(); } catch (error) { notify(error.message, true); }
 }
 
+async function loadHistory(query = '') {
+  try { historyClients = await api(`/api/historial?q=${encodeURIComponent(query)}`); renderHistory(); } catch (error) { notify(error.message, true); }
+}
+
+function renderHistory() {
+  $('#historyBody').innerHTML = historyClients.map(client => `<tr><td><strong>${escapeHtml(client.nombre)}</strong><small>${escapeHtml(client.telefono || 'Sin teléfono')}</small></td><td>${fmt(client.totalCompras)}</td><td>${fmt(client.totalEnganches)}</td><td class="paid">${fmt(client.totalAbonos)}</td><td><span class="history-status">Saldada</span></td><td><div class="row-actions"><button class="icon-btn history-detail" data-id="${client._id}" title="Ver historial">⌕</button></div></td></tr>`).join('');
+  $('#historyCount').textContent = `${historyClients.length} ${historyClients.length === 1 ? 'registro' : 'registros'}`;
+  $('#historyEmpty').classList.toggle('hidden', historyClients.length > 0);
+  $('#historyTableWrap').classList.toggle('hidden', historyClients.length === 0);
+}
+
+function switchView(view) {
+  const history = view === 'history';
+  $('#clientsView').classList.toggle('hidden', history); $('#historyView').classList.toggle('hidden', !history);
+  $('#clientsNav').classList.toggle('nav-active', !history); $('#historyNav').classList.toggle('nav-active', history);
+  const target = history ? $('#historyView') : $('#clientsView'); target.classList.remove('view-enter'); requestAnimationFrame(() => target.classList.add('view-enter'));
+  if (history) loadHistory($('#historySearch').value); else loadClients($('#searchInput').value);
+}
+
+$('#clientsNav').addEventListener('click', () => switchView('clients'));
+$('#historyNav').addEventListener('click', () => switchView('history'));
+let historySearchTimer;
+$('#historySearch').addEventListener('input', event => { clearTimeout(historySearchTimer); historySearchTimer = setTimeout(() => loadHistory(event.target.value), 250); });
+$('#historyBody').addEventListener('click', event => { const button = event.target.closest('.history-detail'); if (button) openDetail(button.dataset.id, true); });
+$('#downloadPdfBtn').addEventListener('click', async () => {
+  try {
+    const response = await fetch(`/api/historial/pdf?q=${encodeURIComponent($('#historySearch').value)}`, { headers: { Authorization: `Bearer ${token}` } });
+    if (!response.ok) throw new Error('No fue posible generar el PDF.');
+    const blob = await response.blob(); const url = URL.createObjectURL(blob); const link = document.createElement('a');
+    link.href = url; link.download = $('#historySearch').value ? 'historial-filtrado.pdf' : 'historial.pdf'; link.click(); URL.revokeObjectURL(url);
+    notify('PDF descargado correctamente.');
+  } catch (error) { notify(error.message, true); }
+});
+
 function renderClients() {
   $('#clientsBody').innerHTML = clients.map(client => `<tr><td><strong>${escapeHtml(client.nombre)}</strong><small>${escapeHtml(client.telefono || 'Sin teléfono')}</small></td><td>${fmt(client.totalCompras)}</td><td>${fmt(client.totalEnganches)}</td><td class="paid">${fmt(client.totalAbonos)}</td><td class="debt">${fmt(client.deuda)}</td><td><div class="row-actions"><button class="icon-btn detail" data-id="${client._id}" title="Ver movimientos">⌕</button><button class="icon-btn edit" data-id="${client._id}" title="Editar">✎</button><button class="icon-btn delete" data-id="${client._id}" title="Eliminar">×</button></div></td></tr>`).join('');
   $('#clientCount').textContent = `${clients.length} ${clients.length === 1 ? 'registro' : 'registros'}`;
@@ -75,16 +111,17 @@ $('#clientForm').addEventListener('submit', async event => {
 
 $('#clientsBody').addEventListener('click', async event => {
   const button = event.target.closest('button'); if (!button) return; const client = clients.find(x => x._id === button.dataset.id);
-  if (button.classList.contains('detail')) openDetail(client._id);
+  if (button.classList.contains('detail')) openDetail(client._id, false);
   if (button.classList.contains('edit')) openClient(client);
   if (button.classList.contains('delete') && confirm(`¿Eliminar a ${client.nombre} y todo su historial? Esta acción no se puede deshacer.`)) {
     try { await api(`/api/clientes/${client._id}`, { method: 'DELETE' }); notify('Cliente eliminado.'); loadClients($('#searchInput').value); } catch (error) { notify(error.message, true); }
   }
 });
 
-async function openDetail(id) {
+async function openDetail(id, readonly = false) {
   selectedId = id;
-  try { detail = await api(`/api/clientes/${id}/movimientos`); $('#detailName').textContent = detail.cliente.nombre; $('#detailPhone').textContent = detail.cliente.telefono || 'Sin teléfono'; $('#detailDebt').textContent = fmt(detail.deuda); renderMovements(); if (!$('#detailDialog').open) $('#detailDialog').showModal(); }
+  detailReadonly = readonly;
+  try { detail = await api(`/api/clientes/${id}/movimientos`); $('#detailName').textContent = detail.cliente.nombre; $('#detailPhone').textContent = detail.cliente.telefono || 'Sin teléfono'; $('#detailDebt').textContent = readonly ? 'SALDADA' : fmt(detail.deuda); $('.detail-actions').classList.toggle('hidden', readonly); renderMovements(); if (!$('#detailDialog').open) $('#detailDialog').showModal(); }
   catch (error) { notify(error.message, true); }
 }
 
@@ -109,7 +146,19 @@ $('#movementForm').addEventListener('submit', async event => {
   event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget));
   if (movementType === 'purchase' && (!values.producto || !values.precio)) return notify('Completa el producto y el precio.', true);
   if (movementType === 'payment' && !values.cantidad) return notify('Indica la cantidad del abono.', true);
-  try { await api(`/api/clientes/${selectedId}/${movementType === 'purchase' ? 'compras' : 'abonos'}`, { method: 'POST', body: JSON.stringify(values) }); $('#movementDialog').close(); notify(movementType === 'purchase' ? 'Compra agregada.' : 'Abono registrado.'); await openDetail(selectedId); await loadClients($('#searchInput').value); }
+  try {
+    const result = await api(`/api/clientes/${selectedId}/${movementType === 'purchase' ? 'compras' : 'abonos'}`, { method: 'POST', body: JSON.stringify(values) });
+    $('#movementDialog').close();
+    if (movementType === 'payment' && result.deudaRestante === 0) {
+      $('#detailDialog').close();
+      await loadClients($('#searchInput').value);
+      switchView('history');
+      notify('¡Cuenta saldada! Se movió al historial.');
+      return;
+    }
+    notify(movementType === 'purchase' ? 'Compra agregada.' : 'Abono registrado.');
+    await openDetail(selectedId, false); await loadClients($('#searchInput').value);
+  }
   catch (error) { notify(error.message, true); }
 });
 

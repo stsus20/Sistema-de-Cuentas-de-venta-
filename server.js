@@ -2,6 +2,7 @@ require('dotenv').config();
 
 const crypto = require('crypto');
 const express = require('express');
+const PDFDocument = require('pdfkit');
 const path = require('path');
 const { MongoClient, ObjectId } = require('mongodb');
 
@@ -60,6 +61,34 @@ function handleError(res, error) {
   res.status(500).json({ error: 'Ocurrió un error en el servidor.' });
 }
 
+function listenOnAvailablePort(startPort, attempts = 10) {
+  const server = app.listen(startPort);
+  server.once('listening', () => console.log(`Cuentas disponible en http://localhost:${startPort}`));
+  server.once('error', error => {
+    if (error.code === 'EADDRINUSE' && attempts > 0) {
+      console.warn(`El puerto ${startPort} está ocupado; intentando con ${startPort + 1}...`);
+      listenOnAvailablePort(startPort + 1, attempts - 1);
+      return;
+    }
+    console.error('No fue posible abrir un puerto para la aplicación:', error.message);
+    mongo.close().finally(() => process.exit(1));
+  });
+}
+
+function clientSummaryPipeline(search, history = false) {
+  const match = search ? { nombre: { $regex: search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' } } : {};
+  return [
+    { $match: match },
+    { $lookup: { from: 'compras', localField: '_id', foreignField: 'clienteId', as: 'compras' } },
+    { $lookup: { from: 'abonos', localField: '_id', foreignField: 'clienteId', as: 'abonos' } },
+    { $addFields: { totalCompras: { $sum: '$compras.precio' }, totalEnganches: { $sum: '$compras.enganche' }, totalAbonos: { $sum: '$abonos.cantidad' }, numeroCompras: { $size: '$compras' } } },
+    { $addFields: { deuda: { $max: [0, { $subtract: [{ $subtract: ['$totalCompras', '$totalEnganches'] }, '$totalAbonos'] }] } } },
+    { $match: history ? { numeroCompras: { $gt: 0 }, deuda: { $lte: 0 } } : { $or: [{ numeroCompras: 0 }, { deuda: { $gt: 0 } }] } },
+    { $project: { compras: 0, abonos: 0 } },
+    { $sort: history ? { actualizadoEn: -1, nombre: 1 } : { deuda: -1, nombre: 1 } }
+  ];
+}
+
 app.post('/api/login', async (req, res) => {
   const username = clean(req.body.username).toLowerCase();
   const password = String(req.body.password || '');
@@ -73,20 +102,49 @@ app.get('/api/session', auth, (req, res) => res.json({ username: req.user.userna
 app.get('/api/clientes', auth, async (req, res) => {
   try {
     const search = clean(req.query.q);
-    const match = search ? { nombre: { $regex: search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' } } : {};
-    const clientes = await db.collection('clientes').aggregate([
-      { $match: match },
-      { $lookup: { from: 'compras', localField: '_id', foreignField: 'clienteId', as: 'compras' } },
-      { $lookup: { from: 'abonos', localField: '_id', foreignField: 'clienteId', as: 'abonos' } },
-      { $addFields: {
-        totalCompras: { $sum: '$compras.precio' }, totalEnganches: { $sum: '$compras.enganche' }, totalAbonos: { $sum: '$abonos.cantidad' }
-      } },
-      { $addFields: { deuda: { $max: [0, { $subtract: [{ $subtract: ['$totalCompras', '$totalEnganches'] }, '$totalAbonos'] }] } } },
-      { $project: { compras: 0, abonos: 0 } },
-      { $sort: { deuda: -1, nombre: 1 } }
-    ]).toArray();
+    const clientes = await db.collection('clientes').aggregate(clientSummaryPipeline(search, false)).toArray();
     res.json(clientes);
   } catch (error) { handleError(res, error); }
+});
+
+app.get('/api/historial', auth, async (req, res) => {
+  try {
+    const clientes = await db.collection('clientes').aggregate(clientSummaryPipeline(clean(req.query.q), true)).toArray();
+    res.json(clientes);
+  } catch (error) { handleError(res, error); }
+});
+
+app.get('/api/historial/pdf', auth, async (req, res) => {
+  try {
+    const search = clean(req.query.q);
+    const clientes = await db.collection('clientes').aggregate(clientSummaryPipeline(search, true)).toArray();
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="historial${search ? '-filtrado' : ''}.pdf"`);
+    const doc = new PDFDocument({ margin: 46, size: 'LETTER' });
+    doc.pipe(res);
+    doc.fillColor('#7546c7').fontSize(23).text('Historial de cuentas saldadas');
+    doc.moveDown(.3).fillColor('#6f657d').fontSize(10).text(`Generado: ${new Date().toLocaleString('es-MX')}${search ? `  |  Filtro: ${search}` : ''}`);
+    doc.moveDown(1.2);
+    if (!clientes.length) doc.fillColor('#332842').fontSize(12).text('No hay cuentas saldadas que coincidan con el filtro.');
+    for (const cliente of clientes) {
+      if (doc.y > 650) doc.addPage();
+      const boxY = doc.y;
+      doc.roundedRect(46, boxY, 520, 56, 7).fillAndStroke('#f6f0ff', '#e2d5f5');
+      const y = boxY + 10;
+      doc.fillColor('#2d2040').fontSize(13).text(cliente.nombre, 58, y);
+      doc.fillColor('#756985').fontSize(9).text(cliente.telefono || 'Sin teléfono', 58, y + 19);
+      doc.fillColor('#2d2040').fontSize(10).text(`Compras: $${money(cliente.totalCompras).toFixed(2)}   Enganches: $${money(cliente.totalEnganches).toFixed(2)}   Abonos: $${money(cliente.totalAbonos).toFixed(2)}`, 210, y + 10, { width: 340, align: 'right' });
+      doc.y = boxY + 68;
+      const clienteId = new ObjectId(cliente._id);
+      const [compras, abonos] = await Promise.all([db.collection('compras').find({ clienteId }).sort({ fecha: 1 }).toArray(), db.collection('abonos').find({ clienteId }).sort({ fecha: 1 }).toArray()]);
+      doc.fillColor('#7546c7').fontSize(9).text('COMPRAS');
+      for (const item of compras) doc.fillColor('#4c4258').fontSize(9).text(`${new Date(item.fecha).toLocaleDateString('es-MX')}  ${item.producto} — $${money(item.precio).toFixed(2)} (enganche $${money(item.enganche).toFixed(2)})`, { indent: 8 });
+      doc.moveDown(.35).fillColor('#21906b').fontSize(9).text('ABONOS');
+      for (const item of abonos) doc.fillColor('#4c4258').fontSize(9).text(`${new Date(item.fecha).toLocaleDateString('es-MX')}  $${money(item.cantidad).toFixed(2)}${item.nota ? ` — ${item.nota}` : ''}`, { indent: 8 });
+      doc.moveDown(1.1);
+    }
+    doc.end();
+  } catch (error) { if (!res.headersSent) handleError(res, error); else res.end(); }
 });
 
 app.post('/api/clientes', auth, async (req, res) => {
@@ -195,7 +253,7 @@ async function bootstrap() {
   );
   if (username !== 'admin') await db.collection('usuarios').deleteMany({ username: 'admin' });
   console.log(`Usuario principal configurado: ${username}`);
-  app.listen(PORT, () => console.log(`Cuentas disponible en http://localhost:${PORT}`));
+  listenOnAvailablePort(PORT);
 }
 
 bootstrap().catch(error => { console.error('No fue posible iniciar:', error); process.exit(1); });

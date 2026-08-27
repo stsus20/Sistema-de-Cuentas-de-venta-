@@ -17,7 +17,7 @@
   <main id="loginView" class="login-shell">
     <section class="brand-panel">
       <div class="logo"><span>C</span> Cuentas</div>
-      <div><p class="eyebrow">VENTAS A CRÉDITO</p><h1>Tu cartera,<br>siempre clara.</h1><p class="lead">Administra clientes, productos y pagos desde un solo lugar.</p></div>
+      <div><p class="eyebrow">VENTAS A PAGOS</p><h1>Tu cartera,<br>siempre clara.</h1><p class="lead">Administra clientes, productos y pagos desde un solo lugar.</p></div>
       <p class="secure">● Información protegida y respaldada</p>
     </section>
     <section class="login-panel">
@@ -34,10 +34,11 @@
   <div id="appView" class="app hidden">
     <aside>
       <div class="logo"><span>C</span> Cuentas</div>
-      <nav><button class="nav-active">▦ <span>Clientes</span></button></nav>
+      <nav><button id="clientsNav" class="nav-active">▦ <span>Clientes</span></button><button id="historyNav">◷ <span>Historial</span></button></nav>
       <div class="aside-foot"><div class="avatar">J</div><div><b id="userLabel">Jesus</b><small>Administrador</small></div><button id="logoutBtn" title="Cerrar sesión">↪</button></div>
     </aside>
     <main class="content">
+      <div id="clientsView">
       <header><div><p class="eyebrow">PANEL DE CONTROL</p><h1>Cuentas por cobrar</h1><p>Consulta y administra el saldo de tus clientes.</p></div><button id="newClientBtn" class="primary">＋ Nuevo cliente</button></header>
       <section class="stats">
         <article class="liquid-card"><span class="stat-icon blue">$</span><div><small>DEUDA TOTAL</small><strong id="totalDebt">$0.00</strong></div></article>
@@ -48,7 +49,15 @@
         <div class="table-tools"><div><h2>Clientes</h2><p id="clientCount">0 registros</p></div><div class="search"><span>⌕</span><input id="searchInput" placeholder="Buscar cliente..."></div></div>
         <div class="table-wrap"><table><thead><tr><th>CLIENTE</th><th>TOTAL COMPRAS</th><th>ENGANCHES</th><th>ABONADO</th><th>DEUDA ACTUAL</th><th></th></tr></thead><tbody id="clientsBody"></tbody></table></div>
         <div id="emptyState" class="empty hidden"><span>◎</span><h3>Aún no hay clientes</h3><p>Agrega el primero para comenzar a registrar sus compras.</p></div>
-      </section>
+      </section></div>
+      <div id="historyView" class="hidden">
+        <header><div><p class="eyebrow">CUENTAS TERMINADAS</p><h1>Historial</h1><p>Consulta las cuentas que ya fueron saldadas.</p></div><button id="downloadPdfBtn" class="primary">↓ Descargar PDF</button></header>
+        <section class="table-card liquid-card">
+          <div class="table-tools"><div><h2>Cuentas saldadas</h2><p id="historyCount">0 registros</p></div><div class="search"><span>⌕</span><input id="historySearch" placeholder="Buscar por nombre..."></div></div>
+          <div id="historyTableWrap" class="table-wrap"><table><thead><tr><th>CLIENTE</th><th>TOTAL COMPRAS</th><th>ENGANCHES</th><th>ABONOS</th><th>ESTADO</th><th></th></tr></thead><tbody id="historyBody"></tbody></table></div>
+          <div id="historyEmpty" class="empty hidden"><span>◷</span><h3>Sin cuentas saldadas</h3><p>Cuando un cliente termine de pagar aparecerá aquí.</p></div>
+        </section>
+      </div>
     </main>
   </div>
 
