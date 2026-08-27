@@ -74,6 +74,10 @@
         <nav>
           <button id="clientsNav" class="nav-active">
             ▦ <span>Clientes</span></button
+          ><button id="productsNav">◇ <span>Productos</span></button
+          ><button id="providersNav">♧ <span>Proveedores</span></button
+          ><button id="promotionsNav">％ <span>Promociones</span></button
+          ><button id="investmentNav">↗ <span>Inversión</span></button
           ><button id="historyNav">◷ <span>Historial</span></button>
         </nav>
         <div class="aside-foot">
@@ -125,7 +129,7 @@
                 ><input id="searchInput" placeholder="Buscar cliente..." />
               </div>
             </div>
-            <div class="table-wrap">
+            <div id="clientsTableWrap" class="table-wrap">
               <table>
                 <thead>
                   <tr>
@@ -189,6 +193,32 @@
             </div>
           </section>
         </div>
+        <div id="productsView" class="hidden">
+          <header><div><p class="eyebrow">INVENTARIO</p><h1>Productos</h1><p>Administra los artículos disponibles para venta.</p></div><button id="newProductBtn" class="primary">＋ Nuevo producto</button></header>
+          <section class="table-card liquid-card">
+            <div class="table-tools"><div><h2>Catálogo</h2><p id="productCount">0 productos</p></div><div class="catalog-filters"><select id="providerFilter"><option value="">Todos los proveedores</option></select><select id="codeFilter"><option value="">Todos los códigos</option></select><div class="search"><span>⌕</span><input id="productSearch" placeholder="Buscar producto..." /></div></div></div>
+            <div id="productsTableWrap" class="table-wrap"><table><thead><tr><th>CÓDIGO</th><th>PRODUCTO</th><th>PROVEEDOR</th><th>PRECIO COMPRA</th><th>PRECIO VENTA</th><th>GANANCIA UNITARIA</th><th>STOCK</th><th>REGISTRO</th><th></th></tr></thead><tbody id="productsBody"></tbody></table></div>
+            <div id="productsEmpty" class="empty hidden"><span>◇</span><h3>Sin productos</h3><p>Agrega productos para comenzar a venderlos.</p></div>
+          </section>
+        </div>
+        <div id="providersView" class="hidden">
+          <header><div><p class="eyebrow">DIRECTORIO</p><h1>Proveedores</h1><p>Administra las personas y empresas que surten tu inventario.</p></div><button id="newProviderBtn" class="primary">＋ Nuevo proveedor</button></header>
+          <section class="table-card liquid-card"><div class="table-tools"><div><h2>Directorio de proveedores</h2><p id="providerCount">0 proveedores</p></div><div class="search"><span>⌕</span><input id="providerSearch" placeholder="Buscar proveedor..." /></div></div><div id="providersTableWrap" class="table-wrap"><table><thead><tr><th>PROVEEDOR</th><th>CONTACTO</th><th>TELÉFONO</th><th>REGISTRO</th><th></th></tr></thead><tbody id="providersBody"></tbody></table></div><div id="providersEmpty" class="empty hidden"><span>♧</span><h3>Sin proveedores</h3><p>Agrega el primero para asignarlo a tus productos.</p></div></section>
+        </div>
+        <div id="investmentView" class="hidden">
+          <header><div><p class="eyebrow">RESUMEN FINANCIERO</p><h1>Inversión y ganancias</h1><p>Valor actual del inventario y utilidad de productos vendidos.</p></div></header>
+          <section class="stats investment-stats"><article class="liquid-card"><span class="stat-icon violet">$</span><div><small>INVENTARIO AL COSTO</small><strong id="purchaseInvestment">$0.00</strong></div></article><article class="liquid-card"><span class="stat-icon blue">＋</span><div><small>GASTOS ACUMULADOS</small><strong id="totalExpenses">$0.00</strong></div></article><article class="liquid-card"><span class="stat-icon violet">∑</span><div><small>INVERSIÓN TOTAL</small><strong id="totalInvestment">$0.00</strong></div></article><article class="liquid-card"><span class="stat-icon blue">↗</span><div><small>VALOR VENTA INVENTARIO</small><strong id="retailInvestment">$0.00</strong></div></article><article class="liquid-card"><span class="stat-icon green">✓</span><div><small>GANANCIAS REALIZADAS</small><strong id="totalProfit">$0.00</strong></div></article></section>
+          <section class="table-card liquid-card"><div class="table-tools"><div><h2>Ganancias por producto</h2><p id="soldUnits">0 unidades vendidas</p></div></div><div id="investmentTableWrap" class="table-wrap"><table><thead><tr><th>PRODUCTO</th><th>VENDIDOS</th><th>INGRESOS</th><th>COSTO DE LO VENDIDO</th><th>GANANCIA REAL</th></tr></thead><tbody id="investmentBody"></tbody></table></div></section>
+          <section class="table-card liquid-card expense-card"><div class="table-tools"><div><h2>Gastos</h2><p id="expenseCount">0 gastos registrados</p></div><button id="newExpenseBtn" class="primary">＋ Registrar gasto</button></div><div id="expensesTableWrap" class="table-wrap"><table><thead><tr><th>FECHA</th><th>TIPO DE GASTO</th><th>DESCRIPCIÓN</th><th>CANTIDAD</th><th></th></tr></thead><tbody id="expensesBody"></tbody></table></div><div id="expensesEmpty" class="empty hidden"><span>$</span><h3>Sin gastos</h3><p>Registra envíos, pasajes u otros gastos del negocio.</p></div></section>
+        </div>
+        <div id="promotionsView" class="hidden">
+          <header><div><p class="eyebrow">PRECIOS ESPECIALES</p><h1>Promociones</h1><p>Aplica descuentos que se usarán automáticamente en nuevas ventas.</p></div><button id="newPromotionBtn" class="primary">＋ Nueva promoción</button></header>
+          <section class="table-card liquid-card">
+            <div class="table-tools"><div><h2>Promociones activas</h2><p id="promotionCount">0 promociones</p></div></div>
+            <div id="promotionsTableWrap" class="table-wrap"><table><thead><tr><th>CÓDIGO</th><th>PRODUCTO</th><th>PRECIO NORMAL</th><th>PRECIO PROMOCIÓN</th><th>DESCUENTO</th><th></th></tr></thead><tbody id="promotionsBody"></tbody></table></div>
+            <div id="promotionsEmpty" class="empty hidden"><span>％</span><h3>Sin promociones</h3><p>Crea una promoción para ofrecer un precio especial.</p></div>
+          </section>
+        </div>
       </main>
     </div>
 
@@ -246,6 +276,35 @@
       </div>
     </dialog>
 
+    <dialog id="productDialog">
+      <form id="productForm" method="dialog">
+        <div class="modal-head"><div><p class="eyebrow">INVENTARIO</p><h2 id="productTitle">Nuevo producto</h2></div><button type="button" class="close">×</button></div>
+        <input type="hidden" name="id" />
+        <label>Código identificador<input name="codigo" placeholder="Automático al crear · Ej. PROD-1" /></label>
+        <label>Proveedor<select id="productProvider" name="proveedorId" required><option value="">Selecciona un proveedor...</option></select></label>
+        <label>Nombre del producto<input name="nombre" required placeholder="Ej. Refrigerador 11 pies" /></label>
+        <div class="field-row"><label>Precio de compra<input name="precioCompra" type="number" min="0" step="0.01" required placeholder="0.00" /></label><label>Precio de venta<input name="precioVenta" type="number" min="0.01" step="0.01" required placeholder="0.00" /></label></div>
+        <label>Stock disponible<input name="stock" type="number" min="0" step="1" required value="1" /></label>
+        <div class="actions"><button type="button" class="secondary close">Cancelar</button><button class="primary" type="submit">Guardar producto</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="providerDialog">
+      <form id="providerForm" method="dialog"><div class="modal-head"><div><p class="eyebrow">DIRECTORIO</p><h2 id="providerTitle">Nuevo proveedor</h2></div><button type="button" class="close">×</button></div><input type="hidden" name="id" /><label>Nombre o empresa<input name="nombre" required placeholder="Ej. Distribuidora del Centro" /></label><label>Persona de contacto <span>(opcional)</span><input name="contacto" placeholder="Ej. María López" /></label><label>Teléfono <span>(opcional)</span><input name="telefono" placeholder="Ej. 555 123 4567" /></label><div class="actions"><button type="button" class="secondary close">Cancelar</button><button class="primary" type="submit">Guardar proveedor</button></div></form>
+    </dialog>
+
+    <dialog id="expenseDialog"><form id="expenseForm" method="dialog"><div class="modal-head"><div><p class="eyebrow">INVERSIÓN</p><h2 id="expenseTitle">Registrar gasto</h2></div><button type="button" class="close">×</button></div><input type="hidden" name="id" /><label>Tipo de gasto<select name="tipo" required><option value="">Selecciona...</option><option>Envío</option><option>Pasajes</option><option>Gasolina</option><option>Empaque</option><option>Publicidad</option><option>Otro</option></select></label><label>Descripción <span>(opcional)</span><input name="descripcion" placeholder="Ej. Viaje para recoger mercancía" /></label><label>Cantidad<input name="cantidad" type="number" min="0.01" step="0.01" required placeholder="0.00" /></label><div class="actions"><button type="button" class="secondary close">Cancelar</button><button class="primary" type="submit">Guardar gasto</button></div></form></dialog>
+
+    <dialog id="promotionDialog">
+      <form id="promotionForm" method="dialog">
+        <div class="modal-head"><div><p class="eyebrow">PRECIO ESPECIAL</p><h2 id="promotionTitle">Nueva promoción</h2></div><button type="button" class="close">×</button></div>
+        <input type="hidden" name="id" />
+        <label>Producto<select id="promotionProduct" name="productoId" required><option value="">Selecciona un producto...</option></select></label>
+        <div class="field-row"><label>Precio normal<input id="promotionRegularPrice" type="text" readonly placeholder="$0.00" /></label><label>Precio de promoción<input name="precioPromocion" type="number" min="0.01" step="0.01" required placeholder="0.00" /></label></div>
+        <div class="actions"><button type="button" class="secondary close">Cancelar</button><button class="primary" type="submit">Guardar promoción</button></div>
+      </form>
+    </dialog>
+
     <!-- Diálogo reutilizable para compras y abonos. -->
     <dialog id="movementDialog">
       <form id="movementForm" method="dialog">
@@ -257,18 +316,9 @@
           <button type="button" class="close">×</button>
         </div>
         <div id="purchaseFields">
-          <label
-            >Producto<input name="producto" placeholder="Ej. Refrigerador"
-          /></label>
+          <label>Producto<select id="saleProduct" name="productoId" required><option value="">Selecciona un producto...</option></select></label>
           <div class="field-row">
-            <label
-              >Precio total<input
-                name="precio"
-                type="number"
-                min="0.01"
-                step="0.01"
-                placeholder="0.00" /></label
-            ><label
+            <label>Precio de venta<input id="salePrice" type="text" readonly placeholder="$0.00" /></label><label
               >Enganche<input
                 name="enganche"
                 type="number"

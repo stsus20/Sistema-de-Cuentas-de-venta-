@@ -91,7 +91,7 @@ function handleError(res, error) {
   if (error?.code === 11000)
     return res
       .status(409)
-      .json({ error: "Ya existe un cliente con ese nombre." });
+      .json({ error: "Ya existe un registro con ese nombre." });
   res.status(500).json({ error: "Ocurrió un error en el servidor." });
 }
 
@@ -196,6 +196,146 @@ app.post("/api/login", async (req, res) => {
 app.get("/api/session", auth, (req, res) =>
   res.json({ username: req.user.username }),
 );
+
+app.get("/api/proveedores", auth, async (req, res) => {
+  try { const q = clean(req.query.q), match = q ? { nombre: { $regex: q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), $options: "i" } } : {}; res.json(await db.collection("proveedores").find(match).sort({ nombre: 1 }).toArray()); }
+  catch (error) { handleError(res, error); }
+});
+app.post("/api/proveedores", auth, async (req, res) => {
+  try { const nombre = clean(req.body.nombre), contacto = clean(req.body.contacto), telefono = clean(req.body.telefono); if (nombre.length < 2) return res.status(400).json({ error: "Escribe el nombre del proveedor." }); const data = { nombre, nombreNormalizado: nombre.toLowerCase(), contacto, telefono, fechaRegistro: new Date(), actualizadoEn: new Date() }; const result = await db.collection("proveedores").insertOne(data); res.status(201).json({ _id: result.insertedId, ...data }); }
+  catch (error) { handleError(res, error); }
+});
+app.put("/api/proveedores/:id", auth, async (req, res) => {
+  try { if (!validId(req.params.id)) return res.status(400).json({ error: "Proveedor inválido." }); const nombre = clean(req.body.nombre), contacto = clean(req.body.contacto), telefono = clean(req.body.telefono); if (nombre.length < 2) return res.status(400).json({ error: "Escribe el nombre del proveedor." }); const result = await db.collection("proveedores").updateOne({ _id: new ObjectId(req.params.id) }, { $set: { nombre, nombreNormalizado: nombre.toLowerCase(), contacto, telefono, actualizadoEn: new Date() } }); if (!result.matchedCount) return res.status(404).json({ error: "Proveedor no encontrado." }); res.json({ ok: true }); }
+  catch (error) { handleError(res, error); }
+});
+app.delete("/api/proveedores/:id", auth, async (req, res) => {
+  try { if (!validId(req.params.id)) return res.status(400).json({ error: "Proveedor inválido." }); const proveedorId = new ObjectId(req.params.id); if (await db.collection("productos").findOne({ proveedorId })) return res.status(409).json({ error: "No puedes eliminar un proveedor que tiene productos asignados." }); await db.collection("proveedores").deleteOne({ _id: proveedorId }); res.json({ ok: true }); }
+  catch (error) { handleError(res, error); }
+});
+
+app.get("/api/productos", auth, async (req, res) => {
+  try {
+    const q = clean(req.query.q);
+    const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const match = q ? { $or: [{ nombre: { $regex: escaped, $options: "i" } }, { codigo: { $regex: escaped, $options: "i" } }] } : {};
+    if (validId(req.query.proveedorId)) match.proveedorId = new ObjectId(req.query.proveedorId);
+    if (clean(req.query.codigo)) match.codigo = clean(req.query.codigo);
+    const productos = await db.collection("productos").aggregate([{ $match: match }, { $lookup: { from: "proveedores", localField: "proveedorId", foreignField: "_id", as: "proveedor" } }, { $addFields: { proveedor: { $arrayElemAt: ["$proveedor", 0] } } }, { $sort: { codigo: 1, nombre: 1 } }]).toArray();
+    res.json(productos);
+  } catch (error) { handleError(res, error); }
+});
+
+app.post("/api/productos", auth, async (req, res) => {
+  try {
+    const nombre = clean(req.body.nombre), precioCompra = money(req.body.precioCompra), precioVenta = money(req.body.precioVenta), stock = Number.parseInt(req.body.stock, 10);
+    if (nombre.length < 2 || !Number.isFinite(precioCompra) || precioCompra < 0 || !Number.isFinite(precioVenta) || precioVenta <= 0 || !Number.isInteger(stock) || stock < 0 || !validId(req.body.proveedorId)) return res.status(400).json({ error: "Completa correctamente el proveedor, nombre, precios y stock." });
+    const proveedorId = new ObjectId(req.body.proveedorId);
+    if (!await db.collection("proveedores").findOne({ _id: proveedorId })) return res.status(404).json({ error: "Proveedor no encontrado." });
+    const counter = await db.collection("contadores").findOneAndUpdate({ _id: "productos" }, { $inc: { secuencia: 1 } }, { upsert: true, returnDocument: "after" });
+    const codigo = `PROD-${counter.secuencia}`;
+    const producto = { codigo, proveedorId, nombre, nombreNormalizado: nombre.toLowerCase(), precioCompra, precioVenta, stock, stockInicial: stock, fechaRegistro: new Date(), actualizadoEn: new Date() };
+    const result = await db.collection("productos").insertOne(producto);
+    res.status(201).json({ _id: result.insertedId, ...producto });
+  } catch (error) { handleError(res, error); }
+});
+
+app.put("/api/productos/:id", auth, async (req, res) => {
+  try {
+    if (!validId(req.params.id)) return res.status(400).json({ error: "Producto inválido." });
+    const nombre = clean(req.body.nombre), codigo = clean(req.body.codigo).toUpperCase(), precioCompra = money(req.body.precioCompra), precioVenta = money(req.body.precioVenta), stock = Number.parseInt(req.body.stock, 10);
+    if (nombre.length < 2 || precioCompra < 0 || precioVenta <= 0 || !Number.isInteger(stock) || stock < 0 || !validId(req.body.proveedorId)) return res.status(400).json({ error: "Completa correctamente el proveedor, nombre, precios y stock." });
+    if (codigo && !/^PROD-\d+$/.test(codigo)) return res.status(400).json({ error: "El código debe tener el formato PROD-1, PROD-2, etc." });
+    const changes = { proveedorId: new ObjectId(req.body.proveedorId), nombre, nombreNormalizado: nombre.toLowerCase(), precioCompra, precioVenta, stock, actualizadoEn: new Date() };
+    if (codigo) changes.codigo = codigo;
+    const update = codigo ? { $set: changes } : { $set: changes, $unset: { codigo: "" } };
+    const result = await db.collection("productos").updateOne({ _id: new ObjectId(req.params.id) }, update);
+    if (!result.matchedCount) return res.status(404).json({ error: "Producto no encontrado." });
+    res.json({ ok: true });
+  } catch (error) { handleError(res, error); }
+});
+
+app.delete("/api/productos/:id", auth, async (req, res) => {
+  try {
+    if (!validId(req.params.id)) return res.status(400).json({ error: "Producto inválido." });
+    const productoId = new ObjectId(req.params.id);
+    if (await db.collection("compras").findOne({ productoId })) return res.status(409).json({ error: "No puedes eliminar un producto que ya tiene ventas. Puedes dejar su stock en 0." });
+    await Promise.all([db.collection("productos").deleteOne({ _id: productoId }), db.collection("promociones").deleteMany({ productoId })]);
+    res.json({ ok: true });
+  } catch (error) { handleError(res, error); }
+});
+
+app.get("/api/promociones", auth, async (_req, res) => {
+  try {
+    const promociones = await db.collection("promociones").aggregate([
+      { $lookup: { from: "productos", localField: "productoId", foreignField: "_id", as: "producto" } },
+      { $unwind: "$producto" }, { $sort: { "producto.nombre": 1 } }
+    ]).toArray();
+    res.json(promociones);
+  } catch (error) { handleError(res, error); }
+});
+
+async function promotionData(body, res) {
+  if (!validId(body.productoId)) { res.status(400).json({ error: "Selecciona un producto." }); return null; }
+  const productoId = new ObjectId(body.productoId), producto = await db.collection("productos").findOne({ _id: productoId });
+  const precioPromocion = money(body.precioPromocion);
+  if (!producto) { res.status(404).json({ error: "Producto no encontrado." }); return null; }
+  if (!Number.isFinite(precioPromocion) || precioPromocion <= 0 || precioPromocion >= producto.precioVenta) { res.status(400).json({ error: "El precio de promoción debe ser mayor a $0 y menor al precio de venta." }); return null; }
+  return { productoId, precioPromocion, actualizadoEn: new Date() };
+}
+
+app.post("/api/promociones", auth, async (req, res) => {
+  try { const data = await promotionData(req.body, res); if (!data) return; const result = await db.collection("promociones").insertOne({ ...data, fechaRegistro: new Date() }); res.status(201).json({ _id: result.insertedId, ...data }); }
+  catch (error) { handleError(res, error); }
+});
+
+app.put("/api/promociones/:id", auth, async (req, res) => {
+  try { if (!validId(req.params.id)) return res.status(400).json({ error: "Promoción inválida." }); const data = await promotionData(req.body, res); if (!data) return; const result = await db.collection("promociones").updateOne({ _id: new ObjectId(req.params.id) }, { $set: data }); if (!result.matchedCount) return res.status(404).json({ error: "Promoción no encontrada." }); res.json({ ok: true }); }
+  catch (error) { handleError(res, error); }
+});
+
+app.delete("/api/promociones/:id", auth, async (req, res) => {
+  try { if (!validId(req.params.id)) return res.status(400).json({ error: "Promoción inválida." }); await db.collection("promociones").deleteOne({ _id: new ObjectId(req.params.id) }); res.json({ ok: true }); }
+  catch (error) { handleError(res, error); }
+});
+
+app.get("/api/gastos", auth, async (_req, res) => {
+  try { res.json(await db.collection("gastos").find({}).sort({ fechaRegistro: -1 }).toArray()); }
+  catch (error) { handleError(res, error); }
+});
+function expenseData(body, res) {
+  const tipo = clean(body.tipo), descripcion = clean(body.descripcion), cantidad = money(body.cantidad);
+  if (tipo.length < 2 || !Number.isFinite(cantidad) || cantidad <= 0) { res.status(400).json({ error: "Indica el tipo de gasto y una cantidad válida." }); return null; }
+  return { tipo, descripcion, cantidad, actualizadoEn: new Date() };
+}
+app.post("/api/gastos", auth, async (req, res) => {
+  try { const data = expenseData(req.body, res); if (!data) return; const gasto = { ...data, fechaRegistro: new Date(), creadoPor: req.user.username }; const result = await db.collection("gastos").insertOne(gasto); res.status(201).json({ _id: result.insertedId, ...gasto }); }
+  catch (error) { handleError(res, error); }
+});
+app.put("/api/gastos/:id", auth, async (req, res) => {
+  try { if (!validId(req.params.id)) return res.status(400).json({ error: "Gasto inválido." }); const data = expenseData(req.body, res); if (!data) return; const result = await db.collection("gastos").updateOne({ _id: new ObjectId(req.params.id) }, { $set: data }); if (!result.matchedCount) return res.status(404).json({ error: "Gasto no encontrado." }); res.json({ ok: true }); }
+  catch (error) { handleError(res, error); }
+});
+app.delete("/api/gastos/:id", auth, async (req, res) => {
+  try { if (!validId(req.params.id)) return res.status(400).json({ error: "Gasto inválido." }); await db.collection("gastos").deleteOne({ _id: new ObjectId(req.params.id) }); res.json({ ok: true }); }
+  catch (error) { handleError(res, error); }
+});
+
+app.get("/api/inversion", auth, async (_req, res) => {
+  try {
+    const productos = await db.collection("productos").aggregate([
+      { $lookup: { from: "compras", localField: "_id", foreignField: "productoId", as: "ventas" } },
+      { $lookup: { from: "promociones", localField: "_id", foreignField: "productoId", as: "promociones" } },
+      { $addFields: { promocion: { $arrayElemAt: ["$promociones", 0] } } },
+      { $addFields: { precioInventario: { $cond: [{ $and: [{ $gt: ["$promocion.precioPromocion", 0] }, { $lt: ["$promocion.precioPromocion", "$precioVenta"] }] }, "$promocion.precioPromocion", "$precioVenta"] } } },
+      { $addFields: { unidadesVendidas: { $sum: "$ventas.cantidad" }, ingresosVentas: { $sum: "$ventas.precio" }, costoVendido: { $sum: { $map: { input: "$ventas", as: "v", in: { $multiply: [{ $ifNull: ["$$v.costoUnitario", 0] }, { $ifNull: ["$$v.cantidad", 1] }] } } } }, gananciaRealizada: { $sum: { $map: { input: "$ventas", as: "v", in: { $subtract: ["$$v.precio", { $multiply: [{ $ifNull: ["$$v.costoUnitario", 0] }, { $ifNull: ["$$v.cantidad", 1] }] }] } } } } } },
+      { $project: { ventas: 0, promociones: 0, promocion: 0 } }, { $sort: { gananciaRealizada: -1, nombre: 1 } }
+    ]).toArray();
+    const gastosTotales = money((await db.collection("gastos").aggregate([{ $group: { _id: null, total: { $sum: "$cantidad" } } }]).toArray())[0]?.total || 0);
+    const inversionCompra = money(productos.reduce((s, p) => s + p.precioCompra * p.stock, 0));
+    res.json({ productos, inversionCompra, gastosTotales, inversionTotal: money(inversionCompra + gastosTotales), valorVentaInventario: money(productos.reduce((s, p) => s + p.precioInventario * p.stock, 0)), gananciasTotales: money(productos.reduce((s, p) => s + p.gananciaRealizada, 0)), unidadesVendidas: productos.reduce((s, p) => s + (p.unidadesVendidas || 0), 0) });
+  } catch (error) { handleError(res, error); }
+});
 
 // Devuelve clientes con saldo pendiente y sus totales calculados.
 app.get("/api/clientes", auth, async (req, res) => {
@@ -376,6 +516,8 @@ app.delete("/api/clientes/:id", auth, async (req, res) => {
     if (!validId(req.params.id))
       return res.status(400).json({ error: "Cliente inválido." });
     const clienteId = new ObjectId(req.params.id);
+    const ventasCatalogo = await db.collection("compras").find({ clienteId, productoId: { $exists: true } }).toArray();
+    for (const venta of ventasCatalogo) await db.collection("productos").updateOne({ _id: venta.productoId }, { $inc: { stock: venta.cantidad || 1 } });
     await Promise.all([
       db.collection("clientes").deleteOne({ _id: clienteId }),
       db.collection("compras").deleteMany({ clienteId }),
@@ -427,28 +569,35 @@ app.post("/api/clientes/:id/compras", auth, async (req, res) => {
     if (!validId(req.params.id))
       return res.status(400).json({ error: "Cliente inválido." });
     const clienteId = new ObjectId(req.params.id);
-    const producto = clean(req.body.producto);
-    const precio = money(req.body.precio);
+    if (!validId(req.body.productoId)) return res.status(400).json({ error: "Selecciona un producto del catálogo." });
+    const productoId = new ObjectId(req.body.productoId), cantidad = 1;
+    const catalogItem = await db.collection("productos").findOneAndUpdate({ _id: productoId, stock: { $gte: cantidad } }, { $inc: { stock: -cantidad }, $set: { actualizadoEn: new Date() } }, { returnDocument: "after" });
+    if (!catalogItem) return res.status(400).json({ error: "El producto no existe o ya no tiene stock." });
+    const producto = catalogItem.nombre;
+    const promocion = await db.collection("promociones").findOne({ productoId });
+    const precioUnitario = promocion?.precioPromocion > 0 && promocion.precioPromocion < catalogItem.precioVenta ? promocion.precioPromocion : catalogItem.precioVenta;
+    const precio = money(precioUnitario * cantidad);
     const enganche = money(req.body.enganche || 0);
-    if (!producto || !Number.isFinite(precio) || precio <= 0)
-      return res
-        .status(400)
-        .json({ error: "Indica un producto y un precio válido." });
     if (!Number.isFinite(enganche) || enganche < 0 || enganche > precio)
-      return res
-        .status(400)
-        .json({ error: "El enganche debe estar entre $0 y el precio." });
-    if (!(await db.collection("clientes").findOne({ _id: clienteId })))
+      { await db.collection("productos").updateOne({ _id: productoId }, { $inc: { stock: cantidad } }); return res.status(400).json({ error: "El enganche debe estar entre $0 y el precio." }); }
+    if (!(await db.collection("clientes").findOne({ _id: clienteId }))) {
+      await db.collection("productos").updateOne({ _id: productoId }, { $inc: { stock: cantidad } });
       return res.status(404).json({ error: "Cliente no encontrado." });
+    }
     const compra = {
       clienteId,
+      productoId,
       producto,
       precio,
+      cantidad,
+      costoUnitario: catalogItem.precioCompra,
       enganche,
       fecha: new Date(),
       creadoPor: req.user.username,
     };
-    const result = await db.collection("compras").insertOne(compra);
+    let result;
+    try { result = await db.collection("compras").insertOne(compra); }
+    catch (error) { await db.collection("productos").updateOne({ _id: productoId }, { $inc: { stock: cantidad } }); throw error; }
     res.status(201).json({ _id: result.insertedId, ...compra });
   } catch (error) {
     handleError(res, error);
@@ -505,8 +654,17 @@ async function bootstrap() {
       .collection("clientes")
       .createIndex({ nombreNormalizado: 1 }, { unique: true }),
     db.collection("compras").createIndex({ clienteId: 1, fecha: -1 }),
+    db.collection("compras").createIndex({ productoId: 1, fecha: -1 }),
     db.collection("abonos").createIndex({ clienteId: 1, fecha: -1 }),
+    db.collection("productos").createIndex({ nombreNormalizado: 1 }, { unique: true }),
+    db.collection("productos").createIndex({ codigo: 1 }, { unique: true, sparse: true }),
+    db.collection("promociones").createIndex({ productoId: 1 }, { unique: true }),
+    db.collection("proveedores").createIndex({ nombreNormalizado: 1 }, { unique: true }),
+    db.collection("gastos").createIndex({ fechaRegistro: -1 }),
   ]);
+  const codedProducts = await db.collection("productos").find({ codigo: /^PROD-\d+$/i }, { projection: { codigo: 1 } }).toArray();
+  const highestCode = codedProducts.reduce((max, product) => Math.max(max, Number(product.codigo.split("-")[1]) || 0), 0);
+  await db.collection("contadores").updateOne({ _id: "productos" }, { $max: { secuencia: Math.max(4, highestCode) } }, { upsert: true });
   const username = clean(process.env.ADMIN_USER || "jesus").toLowerCase();
   const password = process.env.ADMIN_PASSWORD || "garm196cv";
   const secured = passwordHash(password);
