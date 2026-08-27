@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Cuentas | Control de pagos</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/theme.css">
+</head>
+<body>
+  <div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
+  <button id="themeBtn" class="theme-toggle" type="button" aria-label="Cambiar tema"><span class="sun">☀</span><span class="moon">☾</span></button>
+  <div id="toast" class="toast" aria-live="polite"></div>
+  <main id="loginView" class="login-shell">
+    <section class="brand-panel">
+      <div class="logo"><span>C</span> Cuentas</div>
+      <div><p class="eyebrow">VENTAS A CRÉDITO</p><h1>Tu cartera,<br>siempre clara.</h1><p class="lead">Administra clientes, productos y pagos desde un solo lugar.</p></div>
+      <p class="secure">● Información protegida y respaldada</p>
+    </section>
+    <section class="login-panel">
+      <form id="loginForm" class="login-card liquid-card">
+        <p class="eyebrow">BIENVENIDO</p><h2>Inicia sesión</h2><p>Ingresa para consultar tus cuentas.</p>
+        <label>Usuario<input name="username" autocomplete="username" required placeholder="Tu usuario"></label>
+        <label>Contraseña<input name="password" type="password" autocomplete="current-password" required placeholder="••••••••"></label>
+        <button class="primary wide" type="submit">Entrar <span>→</span></button>
+       
+      </form>
+    </section>
+  </main>
+
+  <div id="appView" class="app hidden">
+    <aside>
+      <div class="logo"><span>C</span> Cuentas</div>
+      <nav><button class="nav-active">▦ <span>Clientes</span></button></nav>
+      <div class="aside-foot"><div class="avatar">J</div><div><b id="userLabel">Jesus</b><small>Administrador</small></div><button id="logoutBtn" title="Cerrar sesión">↪</button></div>
+    </aside>
+    <main class="content">
+      <header><div><p class="eyebrow">PANEL DE CONTROL</p><h1>Cuentas por cobrar</h1><p>Consulta y administra el saldo de tus clientes.</p></div><button id="newClientBtn" class="primary">＋ Nuevo cliente</button></header>
+      <section class="stats">
+        <article class="liquid-card"><span class="stat-icon blue">$</span><div><small>DEUDA TOTAL</small><strong id="totalDebt">$0.00</strong></div></article>
+        <article class="liquid-card"><span class="stat-icon violet">♙</span><div><small>CLIENTES ACTIVOS</small><strong id="activeClients">0</strong></div></article>
+        <article class="liquid-card"><span class="stat-icon green">✓</span><div><small>TOTAL ABONADO</small><strong id="totalPaid">$0.00</strong></div></article>
+      </section>
+      <section class="table-card liquid-card">
+        <div class="table-tools"><div><h2>Clientes</h2><p id="clientCount">0 registros</p></div><div class="search"><span>⌕</span><input id="searchInput" placeholder="Buscar cliente..."></div></div>
+        <div class="table-wrap"><table><thead><tr><th>CLIENTE</th><th>TOTAL COMPRAS</th><th>ENGANCHES</th><th>ABONADO</th><th>DEUDA ACTUAL</th><th></th></tr></thead><tbody id="clientsBody"></tbody></table></div>
+        <div id="emptyState" class="empty hidden"><span>◎</span><h3>Aún no hay clientes</h3><p>Agrega el primero para comenzar a registrar sus compras.</p></div>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="clientDialog"><form id="clientForm" method="dialog"><div class="modal-head"><div><p class="eyebrow">CLIENTE</p><h2 id="clientTitle">Nuevo cliente</h2></div><button type="button" class="close">×</button></div><input type="hidden" name="id"><label>Nombre completo<input name="nombre" required placeholder="Ej. María López"></label><label>Teléfono <span>(opcional)</span><input name="telefono" placeholder="Ej. 555 123 4567"></label><div class="actions"><button type="button" class="secondary close">Cancelar</button><button class="primary" type="submit">Guardar cliente</button></div></form></dialog>
+
+  <dialog id="detailDialog" class="detail-dialog"><div class="detail-shell"><div class="modal-head"><div><p class="eyebrow">ESTADO DE CUENTA</p><h2 id="detailName">Cliente</h2><p id="detailPhone"></p></div><button type="button" class="close">×</button></div><section class="balance"><div><small>SALDO PENDIENTE</small><strong id="detailDebt">$0.00</strong></div><div class="detail-actions"><button id="purchaseBtn" class="secondary">＋ Nueva compra</button><button id="paymentBtn" class="primary">$ Registrar abono</button></div></section><div class="tabs"><button class="tab active" data-tab="purchases">Compras</button><button class="tab" data-tab="payments">Abonos</button></div><div id="movementsList" class="movements"></div></div></dialog>
+
+  <dialog id="movementDialog"><form id="movementForm" method="dialog"><div class="modal-head"><div><p id="movementEyebrow" class="eyebrow">MOVIMIENTO</p><h2 id="movementTitle">Registrar</h2></div><button type="button" class="close">×</button></div><div id="purchaseFields"><label>Producto<input name="producto" placeholder="Ej. Refrigerador"></label><div class="field-row"><label>Precio total<input name="precio" type="number" min="0.01" step="0.01" placeholder="0.00"></label><label>Enganche<input name="enganche" type="number" min="0" step="0.01" value="0"></label></div></div><div id="paymentFields"><label>Cantidad del abono<input name="cantidad" type="number" min="0.01" step="0.01" placeholder="0.00"></label><label>Nota <span>(opcional)</span><input name="nota" placeholder="Ej. Pago semanal"></label></div><div class="actions"><button type="button" class="secondary close">Cancelar</button><button class="primary" type="submit">Guardar movimiento</button></div></form></dialog>
+  <script src="/app.js"></script>
+</body></html>
