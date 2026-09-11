@@ -1,0 +1,105 @@
+/* Layout shared by every view, loaded after the visual theme. */
+body { overflow-x: visible; }
+button, input, select { font: inherit; }
+input, select { min-width: 0; max-width: 100%; }
+button { overflow-wrap: anywhere; }
+button:focus-visible, .table-wrap:focus-visible {
+  outline: 3px solid var(--blue);
+  outline-offset: 3px;
+}
+.app { grid-template-columns: 230px minmax(0, 1fr); }
+.content { min-width: 0; width: 100%; max-width: 1800px; margin-inline: auto; padding-bottom: 100px; }
+.content > div, header > div, .table-tools > div, .stats article > div,
+.modal-head > div, .movement-info, .balance > div { min-width: 0; }
+header, .table-tools { gap: 20px; flex-wrap: wrap; }
+header h1, .modal-head h2, .stats strong, .balance strong,
+.movement-info, .movement-amount, #userLabel { overflow-wrap: anywhere; }
+header > button { flex-shrink: 0; }
+.stats, .investment-stats { grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); }
+.stat-icon, .avatar, .movement-icon, .modal-head .close { flex-shrink: 0; }
+aside { overflow-y: auto; }
+.aside-foot { gap: 8px; }
+.aside-foot > div:nth-child(2) { min-width: 0; }
+.aside-foot button { flex-shrink: 0; }
+.catalog-filters { flex: 1 1 560px; flex-wrap: wrap; }
+.catalog-filters select { flex: 1 1 170px; min-width: 0; max-width: 100%; }
+.catalog-filters .search { flex: 1 1 220px; }
+.search input { max-width: 100%; }
+.catalog-filters .search input { width: 100%; }
+.table-wrap { max-width: 100%; overscroll-behavior-x: contain; }
+.table-wrap table { min-width: 680px; }
+#productsTableWrap table { min-width: 1080px; }
+th, td { white-space: nowrap; }
+td { max-width: 300px; }
+td:first-child { min-width: 170px; white-space: normal; overflow-wrap: anywhere; }
+.logo, header h1, .login-card h2, .brand-panel h1, .table-tools h2,
+.modal-head h2, .stats strong, .balance strong { font-family: Manrope, "DM Sans", sans-serif; }
+.row-actions { flex-wrap: wrap; }
+.icon-btn, .modal-head .close, .aside-foot button { min-width: 44px; min-height: 44px; }
+.pagination { flex-wrap: wrap; }
+.pagination button { min-width: 44px; height: 44px; }
+.pagination small { flex: 1 1 180px; }
+dialog { max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px); overflow-y: auto; overscroll-behavior: contain; }
+body:has(dialog[open]) { overflow: hidden; }
+.modal-head { gap: 12px; }
+.actions, .detail-actions { flex-wrap: wrap; }
+.field-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.movement { gap: 10px; }
+.movement-icon { margin-right: 0; }
+.movement-amount { flex-shrink: 0; max-width: 45%; }
+.toast { max-width: calc(100% - 32px); overflow-wrap: anywhere; transform: translateY(calc(-100% - 40px)); }
+.theme-toggle { right: max(16px, env(safe-area-inset-right)); bottom: max(16px, env(safe-area-inset-bottom)); }
+.login-shell { min-height: 100vh; min-height: 100dvh; }
+.login-panel { min-width: 0; padding: clamp(20px, 4vw, 40px); }
+.login-card { padding: clamp(22px, 4vw, 42px); }
+.brand-panel { padding-inline: clamp(28px, 6vw, 90px); }
+
+@media (max-width: 1100px) {
+  .app { grid-template-columns: 190px minmax(0, 1fr); }
+  aside { width: 190px; padding: 24px 12px; }
+  .content { padding: 28px 20px 100px; }
+}
+
+@media (max-width: 850px) {
+  /* Keep all six destinations and sign-out available on touch screens. */
+  .app { display: block; }
+  aside { position: static; width: 100%; padding: 16px 20px; gap: 16px; overflow: visible; }
+  aside .logo { margin: 0; font-size: 20px; }
+  aside .logo span { font-size: 18px; }
+  nav { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  nav button { padding: 12px 8px; text-align: center; font-size: 14px; min-height: 46px; }
+  nav span, .aside-foot button { display: inline; }
+  .aside-foot { margin-top: 0; padding-top: 10px; justify-content: flex-start; }
+  .aside-foot div:nth-child(2) { display: flex; }
+  .content { padding: 26px 20px 100px; }
+  th:nth-child(3), td:nth-child(3) { display: table-cell; }
+  .catalog-filters { flex-direction: row; }
+  .catalog-filters select { width: 100%; }
+}
+
+@media (max-width: 600px) {
+  aside { padding: 14px 16px; }
+  .content { padding: 24px 16px 96px; }
+  header h1 { font-size: clamp(25px, 6vw, 31px); }
+  header > button, .table-tools > button { width: 100%; }
+  .table-tools { padding: 18px 16px; align-items: stretch; }
+  .catalog-filters { flex: auto; display: grid; grid-template-columns: minmax(0, 1fr); }
+  .catalog-filters .search { width: 100%; }
+  .stats, .investment-stats { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .stats article { padding: 18px; }
+  .field-row { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  input, select { font-size: 16px; min-height: 46px; }
+  .empty, .movements .empty { padding: 32px 18px; }
+  dialog form, .detail-shell { padding: 20px 16px; }
+  .modal-head h2 { font-size: 22px; }
+  .actions > button { flex: 1 1 140px; }
+  .detail-actions > button { flex: 1 1 160px; }
+  .balance { padding: 16px; }
+  .movement { flex-wrap: wrap; }
+  .movement-info { flex: 1 1 150px; }
+  .movement-amount { max-width: 100%; }
+  .pagination { padding: 14px; gap: 4px; }
+  .pagination small { flex-basis: 100%; }
+  .toast { top: 16px; right: 16px; }
+  .login-panel { padding-bottom: 90px; }
+}
