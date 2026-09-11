@@ -427,6 +427,8 @@ async function openMovement(type) {
   $("#movementForm").reset();
   $("#purchaseFields").style.display = type === "purchase" ? "block" : "none";
   $("#paymentFields").style.display = type === "payment" ? "block" : "none";
+  $("#purchaseFields").querySelectorAll("input, select").forEach((field) => { field.disabled = type !== "purchase"; });
+  $("#paymentFields").querySelectorAll("input, select").forEach((field) => { field.disabled = type !== "payment"; });
   $("#movementTitle").textContent =
     type === "purchase" ? "Nueva compra" : "Registrar abono";
   $("#movementEyebrow").textContent =

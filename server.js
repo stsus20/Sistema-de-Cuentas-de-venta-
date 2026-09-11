@@ -95,25 +95,10 @@ function handleError(res, error) {
   res.status(500).json({ error: "Ocurrió un error en el servidor." });
 }
 
-// Arranca el servidor y busca el siguiente puerto libre si es necesario.
-function listenOnAvailablePort(startPort, attempts = 10) {
-  const server = app.listen(startPort);
-  server.once("listening", () =>
-    console.log(`Cuentas disponible en http://localhost:${startPort}`),
-  );
-  server.once("error", (error) => {
-    if (error.code === "EADDRINUSE" && attempts > 0) {
-      console.warn(
-        `El puerto ${startPort} está ocupado; intentando con ${startPort + 1}...`,
-      );
-      listenOnAvailablePort(startPort + 1, attempts - 1);
-      return;
-    }
-    console.error(
-      "No fue posible abrir un puerto para la aplicación:",
-      error.message,
-    );
-    mongo.close().finally(() => process.exit(1));
+// servidor en atlas modificado.
+function startServer() {
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Servidor iniciado en el puerto ${PORT}`);
   });
 }
 
@@ -683,7 +668,7 @@ async function bootstrap() {
   if (username !== "admin")
     await db.collection("usuarios").deleteMany({ username: "admin" });
   console.log(`Usuario principal configurado: ${username}`);
-  listenOnAvailablePort(PORT);
+  startServer();
 }
 
 bootstrap().catch((error) => {
