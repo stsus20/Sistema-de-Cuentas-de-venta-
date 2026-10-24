@@ -29,7 +29,7 @@ app.use(
         scriptSrc: ["'self'", "https://accounts.google.com/gsi/client"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://accounts.google.com/gsi/style"],
         fontSrc: ["'self'", "https://fonts.gstatic.com"],
-        imgSrc: ["'self'", "data:", "https://lh3.googleusercontent.com"],
+        imgSrc: ["'self'", "data:", "https:"],
         connectSrc: ["'self'", "https://accounts.google.com/gsi/"],
         frameSrc: ["'self'", "https://accounts.google.com/gsi/", "https://accounts.google.com/"],
       },
@@ -74,6 +74,21 @@ function parseProductImage(value) {
   const image = clean(value);
   return validProductImage(image) && (!image.startsWith("data:") || image.length <= 2_800_000) ? image : null;
 }
+
+// Identidad de la única tienda pública. Se configura por entorno y no depende
+// de que un administrador cree, publique o configure una tienda en la base.
+const publicStore = {
+  nombre: clean(process.env.STORE_NAME || "On - sale").slice(0, 80) || "On - sale",
+  descripcion: clean(process.env.STORE_DESCRIPTION || "Catálogo oficial · Descubre los productos disponibles.").slice(0, 300),
+  logoUrl: (() => {
+    const hero = clean(process.env.STORE_HERO_URL);
+    return hero && !hero.startsWith("data:") && validProductImage(hero) ? hero : "";
+  })(),
+  colorAcento: /^#[0-9a-fA-F]{3,8}$/.test(clean(process.env.STORE_ACCENT_COLOR))
+    ? clean(process.env.STORE_ACCENT_COLOR)
+    : "",
+};
+
 const money = (value) =>
   Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 const validId = (id) => typeof id === "string" && /^[0-9a-fA-F]{24}$/.test(id) && ObjectId.isValid(id);
@@ -187,14 +202,6 @@ async function auth(req, res, next) {
   } catch (error) {
     return res.status(500).json({ error: "Error al validar la sesión." });
   }
-}
-
-// Middleware de autorización exclusivo para el rol suprem
-function requireSuprem(req, res, next) {
-  if (!req.user || req.user.role !== "suprem") {
-    return res.status(403).json({ error: "Acceso denegado: se requieren permisos administrativos de 'suprem'." });
-  }
-  next();
 }
 
 // Solo la cuenta suprem cuyo username es "jesus" administra las cuentas del sistema.
@@ -553,22 +560,6 @@ app.get("/api/session", auth, (req, res) => {
 // Cierre de sesión (el cliente elimina el token local)
 app.post("/api/logout", auth, (_req, res) => {
   res.json({ ok: true, message: "Sesión cerrada correctamente." });
-});
-
-// Resuelve la tienda más recientemente configurada para la portada sin slug.
-app.get("/api/tienda-destacada", async (_req, res) => {
-  try {
-    let tienda = await db.collection("tiendas").findOne(
-      {},
-      { sort: { actualizadoEn: -1 } },
-    );
-    if (!tienda) {
-      const owner = await db.collection("usuarios").findOne({ role: "suprem", isActive: { $ne: false } });
-      if (owner) tienda = await ensureStoreForOwner(owner);
-    }
-    if (!tienda) return res.status(404).json({ error: "Todavía no hay una tienda configurada." });
-    res.json({ slug: tienda.slug });
-  } catch (error) { handleError(res, error); }
 });
 
 // ==========================================
@@ -990,7 +981,6 @@ app.post("/api/productos", auth, async (req, res) => {
     if (!await db.collection("proveedores").findOne({ _id: proveedorId, ownerId })) {
       return res.status(404).json({ error: "Proveedor no encontrado o no pertenece a tu negocio." });
     }
-    if (req.user.role === "suprem") await ensureStoreForOwner(req.user);
     // Secuencia de código aislada por propietario
     const counter = await db.collection("contadores").findOneAndUpdate(
       { _id: `productos_${ownerId}` },
@@ -1571,152 +1561,38 @@ app.post("/api/clientes/:id/abonos", auth, async (req, res) => {
 });
 
 // ==========================================
-// TIENDAS PÚBLICAS (BOUTIQUE)
+// CATÁLOGO PÚBLICO CENTRALIZADO
 // ==========================================
 
-// Helper: convierte texto a slug seguro
-function toSlug(text) {
-  return clean(text)
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 60);
-}
-
-// Crea una tienda básica automáticamente para que cada suprem tenga su catálogo sin configuración manual.
-async function ensureStoreForOwner(user) {
-  const ownerId = user._id;
-  const existing = await db.collection("tiendas").findOne({ ownerId });
-  if (existing) return existing;
-
-  const nombre = clean(user.name || user.username || "Tienda").slice(0, 80);
-  const baseSlug = (toSlug(user.username || nombre) || "tienda").slice(0, 48);
-  for (let attempt = 0; attempt < 100; attempt += 1) {
-    const slug = attempt === 0 ? baseSlug : `${baseSlug}-${attempt + 1}`;
-    const now = new Date();
-    const tienda = {
-      ownerId,
-      nombre,
-      slug,
-      descripcion: "",
-      logoUrl: "",
-      colorAcento: "",
-      published: true,
-      creadoEn: now,
-      actualizadoEn: now,
-    };
-    try {
-      await db.collection("tiendas").insertOne(tienda);
-      return tienda;
-    } catch (error) {
-      if (error?.code !== 11000) throw error;
-      const concurrentStore = await db.collection("tiendas").findOne({ ownerId });
-      if (concurrentStore) return concurrentStore;
-    }
-  }
-  throw new Error("No fue posible asignar una URL única a la tienda.");
-}
-
-// GET mi tienda (admin autenticado)
-app.get("/api/tiendas/mi-tienda", auth, requireSuprem, async (req, res) => {
-  try {
-    res.json(await ensureStoreForOwner(req.user));
-  } catch (error) { handleError(res, error); }
+// Identidad de la tienda única (sin autenticación y sin datos de administradores).
+app.get("/api/tienda", (_req, res) => {
+  res.json(publicStore);
 });
 
-// PUT crear o actualizar tienda (admin)
-app.put("/api/tiendas/mi-tienda", auth, requireSuprem, adminLimiter, async (req, res) => {
+// Catálogo único con los productos disponibles de todos los administradores supremos.
+// La fuente de verdad sigue siendo la colección "productos" y su aislamiento por ownerId.
+app.get("/api/tienda/productos", async (req, res) => {
   try {
-    const ownerId = req.user._id;
-    const nombre = clean(req.body.nombre);
-    const rawSlug = clean(req.body.slug);
-    const slug = rawSlug ? toSlug(rawSlug) : toSlug(nombre);
-    // La tienda y su catálogo quedan visibles automáticamente; ya no se requiere un interruptor de publicación.
-    const published = true;
-    const logoUrl = clean(req.body.logoUrl);
-    const descripcion = clean(req.body.descripcion).slice(0, 300);
-    const colorAcento = /^#[0-9a-fA-F]{3,8}$/.test(clean(req.body.colorAcento))
-      ? clean(req.body.colorAcento)
-      : "";
-
-    if (nombre.length < 2 || nombre.length > 80) {
-      return res.status(400).json({ error: "El nombre de la tienda debe tener entre 2 y 80 caracteres." });
-    }
-    if (!validProductImage(logoUrl) || logoUrl.length > 2_800_000) {
-      return res.status(400).json({ error: "El fondo debe ser una imagen válida de máximo 2 MB." });
-    }
-    if (!slug || !/^[a-z0-9-]{2,60}$/.test(slug)) {
-      return res.status(400).json({ error: "El slug solo puede contener letras minúsculas, números y guiones (2–60 caracteres)." });
-    }
-
-    // Verificar unicidad de slug excluyendo la tienda propia
-    const conflict = await db.collection("tiendas").findOne({ slug, ownerId: { $ne: ownerId } });
-    if (conflict) {
-      return res.status(409).json({ error: "El slug ya está en uso por otra tienda. Elige uno diferente." });
-    }
-
-    const now = new Date();
-    const storeData = {
-      ownerId,
-      nombre,
-      slug,
-      descripcion,
-      logoUrl,
-      colorAcento,
-      published,
-      actualizadoEn: now,
-    };
-
-    const existing = await db.collection("tiendas").findOne({ ownerId });
-    if (existing) {
-      await db.collection("tiendas").updateOne({ ownerId }, { $set: storeData });
-    } else {
-      storeData.creadoEn = now;
-      await db.collection("tiendas").insertOne(storeData);
-    }
-
-    res.json({ ok: true, slug, nombre });
-  } catch (error) { handleError(res, error); }
-});
-
-// GET catálogo público por slug (sin autenticación)
-app.get("/api/tiendas/:slug", async (req, res) => {
-  try {
-    const slug = toSlug(req.params.slug);
-    const tienda = await db.collection("tiendas").findOne({ slug });
-    if (!tienda) {
-      return res.status(404).json({ error: "Tienda no encontrada." });
-    }
-    // Devolver solo campos seguros para el público
-    res.json({
-      nombre: tienda.nombre,
-      slug: tienda.slug,
-      descripcion: tienda.descripcion || "",
-      logoUrl: tienda.logoUrl || "",
-      colorAcento: tienda.colorAcento || "",
-    });
-  } catch (error) { handleError(res, error); }
-});
-
-// GET productos públicos de una tienda (con paginación, búsqueda y filtro)
-app.get("/api/tiendas/:slug/productos", async (req, res) => {
-  try {
-    const slug = toSlug(req.params.slug);
-    const tienda = await db.collection("tiendas").findOne({ slug });
-    if (!tienda) {
-      return res.status(404).json({ error: "Tienda no encontrada." });
-    }
-
     const q = clean(req.query.q);
     const sortBy = clean(req.query.sort) || "nombre";
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
     const limit = Math.min(60, Math.max(1, parseInt(req.query.limit, 10) || 24));
     const skip = (page - 1) * limit;
 
-    // Solo productos con stock > 0 del propietario (ownerId resuelto desde tienda, no del cliente)
-    const match = { ownerId: tienda.ownerId, stock: { $gt: 0 } };
+    // Solo se publican productos de cuentas supremas; los usuarios normales conservan su inventario privado.
+    const supremos = await db.collection("usuarios")
+      .find({ role: "suprem" }, { projection: { _id: 1 } })
+      .toArray();
+
+    if (!supremos.length) {
+      return res.json({ productos: [], total: 0, page, limit, pages: 0 });
+    }
+
+    // Se conserva la regla de negocio existente: stock > 0 es lo que hace visible un producto.
+    const match = {
+      ownerId: { $in: supremos.map((user) => user._id) },
+      stock: { $gt: 0 },
+    };
     if (q) {
       const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       match.nombre = { $regex: escaped, $options: "i" };
@@ -1761,7 +1637,7 @@ app.get("/api/tiendas/:slug/productos", async (req, res) => {
           },
         },
       },
-      // Solo exponer campos necesarios para el catálogo público
+      // Solo exponer campos necesarios para el catálogo público.
       {
         $project: {
           nombre: 1,
@@ -1788,10 +1664,9 @@ app.get("/api/tiendas/:slug/productos", async (req, res) => {
   } catch (error) { handleError(res, error); }
 });
 
-// Servir la SPA de tienda pública para cualquier slug
-app.get("/tienda/:slug", (_req, res) => {
-  res.sendFile(path.join(__dirname, "public", "tienda.html"));
-});
+// Las URLs antiguas por tienda siguen siendo válidas, pero llevan al catálogo único.
+app.get("/tienda", (_req, res) => res.redirect(301, "/"));
+app.get("/tienda/:slug", (_req, res) => res.redirect(301, "/"));
 
 // ==========================================
 // BOOTSTRAP: Conexión y arranque del servidor
@@ -1824,10 +1699,6 @@ async function bootstrap() {
     db.collection("usuarios").createIndex({ username: 1 }, { unique: true }),
     db.collection("usuarios").createIndex({ email: 1 }, { unique: true, sparse: true }),
     db.collection("usuarios").createIndex({ role: 1 }),
-
-    // Colección de tiendas públicas: slug único globalmente, ownerId único (una tienda por admin)
-    db.collection("tiendas").createIndex({ slug: 1 }, { unique: true }),
-    db.collection("tiendas").createIndex({ ownerId: 1 }, { unique: true }),
 
     // Colecciones de negocio: unicidad e índices compuestos estrictamente por ownerId
     db.collection("clientes").createIndex({ ownerId: 1, nombreNormalizado: 1 }, { unique: true }),

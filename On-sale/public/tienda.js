@@ -1,4 +1,4 @@
-/* tienda.js — Lógica del catálogo público boutique */
+/* tienda.js — Lógica de la tienda pública centralizada */
 
 // ─── Helpers ──────────────────────────────────────────────────
 const $ = (sel) => document.querySelector(sel);
@@ -43,15 +43,7 @@ async function initSessionButton() {
       localStorage.removeItem("cuentas_token");
       return;
     }
-    const session = await response.json();
-    // En la portada, un administrador ve su propia tienda; una visita pública ve la destacada.
-    if (!state.slug && session.role === "suprem") {
-      const storeResponse = await fetch("/api/tiendas/mi-tienda", { headers: { Authorization: `Bearer ${token}` } });
-      if (storeResponse.ok) {
-        const ownStore = await storeResponse.json();
-        if (ownStore.slug) state.slug = ownStore.slug;
-      }
-    }
+    await response.json().catch(() => ({}));
     button.textContent = "Cerrar sesión";
     button.href = "#";
     button.addEventListener("click", (event) => {
@@ -67,17 +59,8 @@ async function initSessionButton() {
   }
 }
 
-// ─── Obtener slug de la URL ────────────────────────────────────
-function getSlug() {
-  const parts = location.pathname.split("/").filter(Boolean);
-  // /tienda/:slug
-  if (parts[0] === "tienda" && parts[1]) return parts[1];
-  return null;
-}
-
 // ─── Estado de la aplicación ───────────────────────────────────
 let state = {
-  slug: null,
   tienda: null,
   productos: [],
   total: 0,
@@ -86,7 +69,6 @@ let state = {
   limit: 24,
   query: "",
   sort: "nombre",
-  loading: false,
 };
 
 // ─── API ────────────────────────────────────────────────────────
@@ -99,15 +81,17 @@ async function apiGet(url) {
 
 // ─── Renderizado ───────────────────────────────────────────────
 function renderStore(tienda) {
-  // Aplicar color de acento personalizado si existe
+  // Aplicar el color de acento configurado para la tienda si existe.
   if (tienda.colorAcento) {
     document.documentElement.style.setProperty("--b-accent", tienda.colorAcento);
   }
 
   // Header / logo
   const logoText = $("#logoText");
-  if (logoText) logoText.textContent = "On - sale";
-  document.title = `${tienda.nombre} · On - sale`;
+  if (logoText) logoText.textContent = tienda.nombre || "On - sale";
+  const tagline = $("#storeTagline");
+  if (tagline) tagline.textContent = "Catálogo oficial";
+  document.title = `${tienda.nombre || "On - sale"} · Catálogo`;
 
   // Hero
   const storeName = $("#storeName");
@@ -116,7 +100,7 @@ function renderStore(tienda) {
   const storeDesc = $("#storeDesc");
   if (storeDesc) storeDesc.textContent = tienda.descripcion || "";
 
-  // La imagen configurada en el panel funciona como fondo del encabezado.
+  // La imagen configurada por entorno funciona como fondo del encabezado.
   const hero = $("#storeHero");
   const heroImage = $("#storeHeroImage");
   if (hero && heroImage) {
@@ -154,6 +138,12 @@ function renderProducts() {
 
   if (!productos.length) {
     if (empty) empty.classList.remove("hidden");
+    const emptyText = $("#emptyText");
+    if (emptyText) {
+      emptyText.textContent = state.query
+        ? "No hay artículos que coincidan con tu búsqueda."
+        : "No hay productos disponibles por el momento.";
+    }
     if (pag) pag.classList.add("hidden");
     return;
   }
@@ -301,23 +291,19 @@ function showView(name) {
 }
 
 // ─── Fetches ─────────────────────────────────────────────────────
-async function fetchStore() {
+async function fetchCatalog() {
   showView("loadingView");
   try {
-    if (!state.slug) {
-      const featured = await apiGet("/api/tienda-destacada");
-      state.slug = featured.slug;
-    }
-    state.tienda = await apiGet(`/api/tiendas/${state.slug}`);
+    state.tienda = await apiGet("/api/tienda");
     renderStore(state.tienda);
-    await fetchProducts();
+    await fetchProducts({ propagate: true });
     showView("catalogView");
   } catch {
     showView("notFoundView");
   }
 }
 
-async function fetchProducts() {
+async function fetchProducts({ propagate = false } = {}) {
   const params = new URLSearchParams({
     page: state.page,
     limit: state.limit,
@@ -326,13 +312,14 @@ async function fetchProducts() {
   if (state.query) params.set("q", state.query);
 
   try {
-    const data = await apiGet(`/api/tiendas/${state.slug}/productos?${params}`);
+    const data = await apiGet(`/api/tienda/productos?${params}`);
     state.productos = data.productos || [];
     state.total = data.total || 0;
     state.pages = data.pages || 1;
     renderProducts();
   } catch (err) {
     toast(err.message || "No se pudieron cargar los productos.", true);
+    if (propagate) throw err;
   }
 }
 
@@ -363,10 +350,10 @@ function initControls() {
 
 // ─── Init ────────────────────────────────────────────────────────
 async function init() {
-  state.slug = getSlug();
   initControls();
+  $("#retryCatalogBtn")?.addEventListener("click", fetchCatalog);
   await initSessionButton();
-  await fetchStore();
+  await fetchCatalog();
 }
 
 init();

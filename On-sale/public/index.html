@@ -166,7 +166,7 @@
           ><button id="investmentNav">↗ <span>Inversión</span></button
           ><button id="historyNav">◷ <span>Historial</span></button
           ><button id="usersNav" class="hidden">👥 <span>Usuarios</span></button
-          ><button id="storeNav" class="hidden">🏪 <span>Mi Tienda</span></button>
+          >
         </nav>
         <div class="aside-foot">
           <div class="avatar" id="userAvatar">J</div>
@@ -374,31 +374,6 @@
         </div>
       </main>
     </div>
-
-    <template id="storeViewTpl">
-      <div id="storeView" class="hidden">
-        <header><div><p class="eyebrow">CATÁLOGO</p><h1>Editar mi tienda</h1><p>Actualiza el nombre y la apariencia de tu catálogo.</p></div></header>
-        <section class="liquid-card" style="max-width:680px;padding:28px 32px;margin-top:20px">
-          <form id="storeForm">
-            <div id="storeLinkBanner" class="hidden" style="background:var(--violet-light,#f0ebff);border:1px solid var(--line);border-radius:10px;padding:14px 18px;margin-bottom:24px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-              <span style="font-size:20px">🔗</span><div style="flex:1;min-width:200px"><p style="margin:0;font-size:13px;color:var(--muted)">Enlace del catálogo</p><a id="storeLinkUrl" href="#" target="_blank" rel="noopener" style="font-weight:700;color:var(--blue);word-break:break-all"></a></div>
-              <button type="button" id="copyStoreLink" class="secondary" style="font-size:13px;padding:7px 16px">Copiar enlace</button>
-            </div>
-            <div class="field-row">
-              <label style="flex:1">Nombre de la tienda<input id="storeNombre" name="nombre" required maxlength="80" /></label>
-              <label style="flex:1">URL (slug)<input id="storeSlug" name="slug" required maxlength="60" pattern="[a-z0-9-]+" title="Solo letras minúsculas, números y guiones" /><small style="color:var(--muted);font-size:12px;margin-top:4px;display:block">Este texto forma parte del enlace de tu catálogo.</small></label>
-            </div>
-            <label>Descripción breve<input id="storeDescripcion" name="descripcion" maxlength="300" /></label>
-            <label>Fondo de la tienda <span>(se verá detrás del nombre y la descripción · PNG, JPG, WebP o GIF · máximo 2 MB)</span><input id="storeLogoFile" type="file" accept="image/png,image/jpeg,image/webp,image/gif" /></label>
-            <input id="storeLogoUrl" name="logoUrl" type="hidden" />
-            <div id="storeLogoPreview" class="store-logo-preview"><span>Sin fondo seleccionado</span></div>
-            <button type="button" id="clearStoreLogo" class="secondary">Quitar fondo</button>
-            <label>Color de acento<div style="display:flex;gap:10px;align-items:center"><input id="storeColorAcento" type="color" value="#8b6f4e" style="width:48px;height:36px;padding:2px" /><input id="storeColorHex" name="colorAcento" type="text" maxlength="9" placeholder="#8b6f4e" style="flex:1" /></div></label>
-            <div class="actions" style="margin-top:24px"><button type="submit" class="primary" id="storeSubmitBtn">Guardar cambios</button></div>
-          </form>
-        </section>
-      </div>
-    </template>
 
     <!-- Diálogo para crear o editar usuarios (exclusivo para suprem) -->
     <dialog id="userDialog">

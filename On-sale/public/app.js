@@ -121,16 +121,6 @@ function showApp(user) {
   const canManageUsers = isSuprem && String(user.username || "").toLowerCase() === "jesus";
   if (usersNavBtn) usersNavBtn.classList.toggle("hidden", !canManageUsers);
 
-  const storeNavBtn = $("#storeNav");
-  if (storeNavBtn) storeNavBtn.classList.toggle("hidden", !isSuprem);
-  if (isSuprem && !$("#storeView")) {
-    const template = $("#storeViewTpl");
-    if (template) {
-      $(".content").appendChild(template.content.cloneNode(true));
-      initStoreForm();
-    }
-  }
-
   loadClients();
 }
 
@@ -295,12 +285,7 @@ function switchView(view) {
     notify("Solo el administrador jesus puede gestionar usuarios.", true);
     view = "clients";
   }
-  if (view === "store" && (!currentUser || currentUser.role !== "suprem")) {
-    notify("Solo una cuenta suprem puede editar su tienda.", true);
-    view = "clients";
-  }
-
-  const views = ["clients", "products", "providers", "promotions", "investment", "history", "users", "store"];
+  const views = ["clients", "products", "providers", "promotions", "investment", "history", "users"];
   views.forEach((name) => {
     const el = $(`#${name}View`);
     if (el) el.classList.toggle("hidden", name !== view);
@@ -319,11 +304,10 @@ function switchView(view) {
   if (view === "promotions") loadPromotions();
   if (view === "investment") loadInvestment();
   if (view === "users") { usersCurrentPage = 1; loadUsers(); }
-  if (view === "store") loadStoreView();
 }
 
 function showView(viewId) {
-  switchView(viewId.replace("View", "").replace("storeView", "store"));
+  switchView(viewId.replace("View", ""));
 }
 
 
@@ -334,7 +318,6 @@ $("#promotionsNav").addEventListener("click", () => switchView("promotions"));
 $("#investmentNav").addEventListener("click", () => switchView("investment"));
 $("#historyNav").addEventListener("click", () => switchView("history"));
 $("#usersNav").addEventListener("click", () => switchView("users"));
-$("#storeNav").addEventListener("click", () => switchView("store"));
 
 async function loadProducts() {
   try { const params = new URLSearchParams({ q: $("#productSearch").value, proveedorId: $("#providerFilter").value, codigo: $("#codeFilter").value }); products = await api(`/api/productos?${params}`); renderProducts(); }
@@ -998,126 +981,6 @@ $$("dialog").forEach((dialog) =>
     logout();
   }
 })();
-
-// La tienda se crea automáticamente; esta sección conserva solo sus opciones de edición.
-async function loadStoreView() {
-  const storeView = $("#storeView");
-  if (!storeView) return;
-  storeView.classList.remove("hidden");
-  try {
-    populateStoreForm(await api("/api/tiendas/mi-tienda"));
-  } catch (error) {
-    notify(error.message || "No se pudo cargar la tienda.", true);
-  }
-}
-
-function populateStoreForm(tienda) {
-  const fields = {
-    storeNombre: tienda.nombre || "",
-    storeSlug: tienda.slug || "",
-    storeDescripcion: tienda.descripcion || "",
-    storeLogoUrl: tienda.logoUrl || "",
-    storeColorHex: tienda.colorAcento || "#8b6f4e",
-  };
-  Object.entries(fields).forEach(([id, value]) => { $(`#${id}`).value = value; });
-  $("#storeLogoFile").value = "";
-  renderStoreLogoPreview(tienda.logoUrl || "");
-  if (tienda.colorAcento) $("#storeColorAcento").value = tienda.colorAcento;
-  updateStoreLinkBanner(tienda.slug);
-}
-
-function renderStoreLogoPreview(source) {
-  const preview = $("#storeLogoPreview");
-  preview.replaceChildren();
-  if (!source) {
-    const hint = document.createElement("span");
-    hint.textContent = "Sin fondo seleccionado";
-    preview.appendChild(hint);
-    return;
-  }
-  const image = document.createElement("img");
-  image.src = source;
-  image.alt = "Vista previa del fondo";
-  preview.appendChild(image);
-}
-
-function updateStoreLinkBanner(slug) {
-  const banner = $("#storeLinkBanner");
-  const link = $("#storeLinkUrl");
-  if (!banner || !link || !slug) return;
-  const url = `${location.origin}/tienda/${slug}`;
-  link.href = url;
-  link.textContent = url;
-  banner.classList.remove("hidden");
-}
-
-function initStoreForm() {
-  const picker = $("#storeColorAcento");
-  const hex = $("#storeColorHex");
-  picker.addEventListener("input", () => { hex.value = picker.value; });
-  hex.addEventListener("input", () => {
-    if (/^#[0-9a-fA-F]{6}$/.test(hex.value)) picker.value = hex.value;
-  });
-
-  $("#storeLogoFile").addEventListener("change", async (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    if (!/^image\/(png|jpeg|webp|gif)$/.test(file.type) || file.size > 2 * 1024 * 1024) {
-      notify("El fondo debe ser PNG, JPG, WebP o GIF de máximo 2 MB.", true);
-      event.target.value = "";
-      return;
-    }
-    try {
-      const source = await readImageFile(file);
-      $("#storeLogoUrl").value = source;
-      renderStoreLogoPreview(source);
-    } catch (error) {
-      notify(error.message || "No se pudo leer el fondo.", true);
-      event.target.value = "";
-    }
-  });
-  $("#clearStoreLogo").addEventListener("click", () => {
-    $("#storeLogoFile").value = "";
-    $("#storeLogoUrl").value = "";
-    renderStoreLogoPreview("");
-  });
-
-  $("#copyStoreLink").addEventListener("click", () => {
-    const href = $("#storeLinkUrl").href;
-    if (href) navigator.clipboard.writeText(href)
-      .then(() => notify("Enlace copiado al portapapeles."))
-      .catch(() => notify("No se pudo copiar el enlace.", true));
-  });
-
-  $("#storeForm").addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const button = $("#storeSubmitBtn");
-    button.disabled = true;
-    const originalText = button.textContent;
-    button.textContent = "Guardando...";
-    try {
-      const result = await api("/api/tiendas/mi-tienda", {
-        method: "PUT",
-        body: JSON.stringify({
-          nombre: $("#storeNombre").value.trim(),
-          slug: $("#storeSlug").value.trim(),
-          descripcion: $("#storeDescripcion").value.trim(),
-          logoUrl: $("#storeLogoUrl").value.trim(),
-          colorAcento: hex.value.trim() || picker.value,
-          published: true,
-        }),
-      });
-      $("#storeSlug").value = result.slug;
-      updateStoreLinkBanner(result.slug);
-      notify("Tienda actualizada.");
-    } catch (error) {
-      notify(error.message || "No se pudo guardar la tienda.", true);
-    } finally {
-      button.disabled = false;
-      button.textContent = originalText;
-    }
-  });
-}
 
 // ══════════════════════════════════════════════
 // GOOGLE SIGN-IN ("Continuar con Google")

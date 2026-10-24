@@ -3,7 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Tienda · On-sale</title>
+    <title>On - sale · Catálogo</title>
+    <meta name="description" content="Catálogo oficial de On - sale." />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -34,13 +35,13 @@
       </div>
     </header>
 
-    <!-- Estado: tienda no encontrada o no publicada -->
+    <!-- Estado: el catálogo no pudo cargarse -->
     <div id="notFoundView" class="b-not-found hidden">
       <div class="b-not-found__inner">
         <span class="b-not-found__icon">🏪</span>
-        <h1>Tienda no disponible</h1>
-        <p>Esta tienda no existe o no está disponible en este momento.</p>
-        <a href="/" class="b-btn b-btn--primary">Volver al inicio</a>
+        <h1>Catálogo no disponible</h1>
+        <p>No pudimos cargar el catálogo en este momento. Intenta de nuevo.</p>
+        <button id="retryCatalogBtn" class="b-btn b-btn--primary" type="button">Reintentar</button>
       </div>
     </div>
 
@@ -98,7 +99,7 @@
           <div id="emptyState" class="b-empty hidden">
             <span class="b-empty__icon">🏷️</span>
             <h3>Sin productos disponibles</h3>
-            <p>No hay artículos que coincidan con tu búsqueda.</p>
+            <p id="emptyText">No hay productos disponibles por el momento.</p>
           </div>
 
           <!-- Paginación -->
@@ -116,7 +117,7 @@
     <!-- Footer -->
     <footer class="b-footer">
       <div class="b-container">
-        <p>Powered by <strong>On - sale</strong> · <a href="/login">¿Tienes un negocio? Crea tu tienda</a></p>
+        <p>Powered by <strong>On - sale</strong> · <a href="/login">Acceso administrativo</a></p>
       </div>
     </footer>
 
