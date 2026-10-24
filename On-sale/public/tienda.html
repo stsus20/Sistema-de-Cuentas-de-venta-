@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Tienda · On-sale</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:wght@300;400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/tienda.css" />
+  </head>
+  <body>
+    <!-- Toast de notificaciones -->
+    <div id="toast" class="b-toast" aria-live="polite"></div>
+
+    <!-- Header -->
+    <header class="b-header" id="siteHeader">
+      <div class="b-header__inner">
+        <div class="b-header__brand">
+          <a id="storeLogo" href="#" class="b-logo">
+            <span id="logoText">On - sale</span>
+          </a>
+          <p id="storeTagline" class="b-header__tagline"></p>
+        </div>
+        <div class="b-header__actions">
+          <button id="themeBtn" class="b-icon-btn" aria-label="Cambiar tema">
+            <span class="sun-icon">☀</span><span class="moon-icon">☾</span>
+          </button>
+          <a id="sessionBtn" href="/login" class="b-btn b-btn--outline">Iniciar sesión</a>
+        </div>
+      </div>
+    </header>
+
+    <!-- Estado: tienda no encontrada o no publicada -->
+    <div id="notFoundView" class="b-not-found hidden">
+      <div class="b-not-found__inner">
+        <span class="b-not-found__icon">🏪</span>
+        <h1>Tienda no disponible</h1>
+        <p>Esta tienda no existe o no está disponible en este momento.</p>
+        <a href="/" class="b-btn b-btn--primary">Volver al inicio</a>
+      </div>
+    </div>
+
+    <!-- Estado: cargando -->
+    <div id="loadingView" class="b-loading">
+      <div class="b-loading__spinner"></div>
+    </div>
+
+    <!-- Catálogo principal -->
+    <main id="catalogView" class="b-catalog hidden">
+
+      <!-- Hero de la tienda -->
+      <section class="b-hero" id="storeHero">
+        <img id="storeHeroImage" class="b-hero__image hidden" alt="" aria-hidden="true" />
+        <div class="b-hero__veil" aria-hidden="true"></div>
+        <div class="b-hero__inner">
+          <h1 id="storeName" class="b-hero__title"></h1>
+          <p id="storeDesc" class="b-hero__desc"></p>
+        </div>
+      </section>
+
+      <!-- Controles de búsqueda y filtros -->
+      <section class="b-controls">
+        <div class="b-controls__inner">
+          <div class="b-search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="b-search__icon" aria-hidden="true">
+              <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+            </svg>
+            <input
+              id="searchInput"
+              type="search"
+              placeholder="Buscar productos..."
+              class="b-search__input"
+              autocomplete="off"
+            />
+          </div>
+          <div class="b-filters">
+            <label class="b-label" for="sortSelect">Ordenar:</label>
+            <select id="sortSelect" class="b-select">
+              <option value="nombre">A – Z</option>
+              <option value="precio_asc">Precio: menor a mayor</option>
+              <option value="precio_desc">Precio: mayor a menor</option>
+            </select>
+          </div>
+          <p id="resultsCount" class="b-results-count"></p>
+        </div>
+      </section>
+
+      <!-- Grid de productos -->
+      <section class="b-grid-section">
+        <div class="b-container">
+          <div id="productsGrid" class="b-grid"></div>
+
+          <!-- Estado vacío -->
+          <div id="emptyState" class="b-empty hidden">
+            <span class="b-empty__icon">🏷️</span>
+            <h3>Sin productos disponibles</h3>
+            <p>No hay artículos que coincidan con tu búsqueda.</p>
+          </div>
+
+          <!-- Paginación -->
+          <div id="pagination" class="b-pagination hidden"></div>
+        </div>
+      </section>
+    </main>
+
+    <dialog id="productImageDialog" class="b-image-dialog" aria-label="Imagen del producto">
+      <button id="closeProductImage" class="b-image-dialog__close" type="button" aria-label="Cerrar imagen">×</button>
+      <img id="productImageLarge" alt="" />
+      <p id="productImageCaption"></p>
+    </dialog>
+
+    <!-- Footer -->
+    <footer class="b-footer">
+      <div class="b-container">
+        <p>Powered by <strong>On - sale</strong> · <a href="/login">¿Tienes un negocio? Crea tu tienda</a></p>
+      </div>
+    </footer>
+
+    <script src="/tienda.js"></script>
+  </body>
+</html>

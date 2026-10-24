@@ -1,0 +1,569 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <!-- Metadatos, tipografías y hojas de estilo de la aplicación. -->
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Cuentas | Control de pagos</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/theme.css" />
+    <link rel="stylesheet" href="/responsive.css" />
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+  </head>
+  <body>
+    <!-- Fondo decorativo y control global del tema visual. -->
+    <div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
+    <button
+      id="themeBtn"
+      class="theme-toggle"
+      type="button"
+      aria-label="Cambiar tema"
+    >
+      <span class="sun">☀</span><span class="moon">☾</span>
+    </button>
+    <div id="toast" class="toast" aria-live="polite"></div>
+
+    <!-- Vista inicial para autenticar al usuario y registro de cuentas. -->
+    <main id="loginView" class="login-shell">
+      <section class="brand-panel">
+        <div class="logo"><span>BC</span> On-sale</div>
+        <div>
+          <p class="eyebrow">VENTAS A PAGOS</p>
+          <h1>Tu cartera,<br />siempre clara.</h1>
+          <p class="lead">
+            Administra clientes, productos y pagos desde un solo lugar.
+          </p>
+        </div>
+        <p class="secure">● Información protegida y respaldada</p>
+      </section>
+      <section class="login-panel">
+        <!-- Formulario de inicio de sesión -->
+        <form id="loginForm" class="login-card liquid-card">
+          <p class="eyebrow">BIENVENIDO</p>
+          <h2>Inicia sesión</h2>
+          <p>Ingresa para consultar tus cuentas.</p>
+          <label
+            >Usuario o correo<input
+              name="username"
+              autocomplete="username"
+              required
+              placeholder="Tu usuario o correo"
+          /></label>
+          <label
+            >Contraseña<input
+              name="password"
+              type="password"
+              autocomplete="current-password"
+              required
+              placeholder="••••••••"
+          /></label>
+          <button class="primary wide" type="submit">
+            Entrar <span>→</span>
+          </button>
+
+          <div class="auth-divider">
+            <span>o</span>
+          </div>
+
+          <div id="googleLoginBtnContainer" class="google-btn-wrapper"></div>
+
+          <div class="auth-switch">
+            <span>¿No tienes una cuenta?</span>
+            <button id="showRegisterBtn" class="link-btn" type="button">Crear cuenta</button>
+          </div>
+        </form>
+
+        <!-- Formulario de registro de nuevas cuentas (rol user obligatorio en servidor) -->
+        <form id="registerForm" class="login-card liquid-card hidden">
+          <p class="eyebrow">NUEVA CUENTA</p>
+          <h2>Crear cuenta</h2>
+          <p>Regístrate para acceder al sistema.</p>
+          <label
+            >Nombre completo<input
+              name="name"
+              required
+              maxlength="80"
+              placeholder="Ej. Juan Pérez"
+          /></label>
+          <label
+            >Número de celular / Teléfono<input
+              name="telefono"
+              type="tel"
+              required
+              minlength="7"
+              maxlength="25"
+              placeholder="Ej. 555 123 4567"
+          /></label>
+          <label
+            >Nombre de usuario<input
+              name="username"
+              required
+              minlength="3"
+              maxlength="30"
+              pattern="^[a-zA-Z0-9._-]+$"
+              title="De 3 a 30 caracteres alfanuméricos, puntos o guiones"
+              placeholder="Ej. juanperez"
+          /></label>
+          <label
+            >Correo electrónico<input
+              name="email"
+              type="email"
+              required
+              placeholder="juan@ejemplo.com"
+          /></label>
+          <label
+            >Contraseña <span>(mínimo 8 caracteres)</span><input
+              name="password"
+              type="password"
+              required
+              minlength="8"
+              autocomplete="new-password"
+              placeholder="••••••••"
+          /></label>
+          <label
+            >Confirmar contraseña<input
+              name="confirmPassword"
+              type="password"
+              required
+              minlength="8"
+              autocomplete="new-password"
+              placeholder="••••••••"
+          /></label>
+          <button class="primary wide" type="submit">
+            Registrarme <span>→</span>
+          </button>
+
+          <div class="auth-divider">
+            <span>o</span>
+          </div>
+
+          <div id="googleRegisterBtnContainer" class="google-btn-wrapper"></div>
+
+          <div class="auth-switch">
+            <span>¿Ya tienes cuenta?</span>
+            <button id="showLoginBtn" class="link-btn" type="button">Iniciar sesión</button>
+          </div>
+        </form>
+      </section>
+    </main>
+
+    <!-- Panel principal: navegación lateral, clientes, inventario, historial y administración de usuarios. -->
+    <div id="appView" class="app hidden">
+      <aside>
+        <div class="logo"><span>BC</span> On-sale</div>
+        <nav>
+          <button id="clientsNav" class="nav-active">
+            ▦ <span>Clientes</span></button
+          ><button id="productsNav">◇ <span>Productos</span></button
+          ><button id="providersNav">♧ <span>Proveedores</span></button
+          ><button id="promotionsNav">％ <span>Promociones</span></button
+          ><button id="investmentNav">↗ <span>Inversión</span></button
+          ><button id="historyNav">◷ <span>Historial</span></button
+          ><button id="usersNav" class="hidden">👥 <span>Usuarios</span></button
+          ><button id="storeNav" class="hidden">🏪 <span>Mi Tienda</span></button>
+        </nav>
+        <div class="aside-foot">
+          <div class="avatar" id="userAvatar">J</div>
+          <div><b id="userLabel">Usuario</b><small id="userRoleBadge">Normal</small></div>
+          <button id="logoutBtn" type="button" title="Cerrar sesión">↪</button>
+        </div>
+      </aside>
+      <main class="content">
+        <div id="clientsView">
+          <header>
+            <div>
+              <p class="eyebrow">PANEL DE CONTROL</p>
+              <h1>Cuentas por cobrar</h1>
+              <p>Consulta y administra el saldo de tus clientes.</p>
+            </div>
+            <button id="newClientBtn" class="primary">＋ Nuevo cliente</button>
+          </header>
+          <section class="stats">
+            <article class="liquid-card">
+              <span class="stat-icon blue">$</span>
+              <div>
+                <small>DEUDA TOTAL</small><strong id="totalDebt">$0.00</strong>
+              </div>
+            </article>
+            <article class="liquid-card">
+              <span class="stat-icon violet">♙</span>
+              <div>
+                <small>CLIENTES ACTIVOS</small
+                ><strong id="activeClients">0</strong>
+              </div>
+            </article>
+            <article class="liquid-card">
+              <span class="stat-icon green">✓</span>
+              <div>
+                <small>TOTAL ABONADO</small
+                ><strong id="totalPaid">$0.00</strong>
+              </div>
+            </article>
+          </section>
+          <section class="table-card liquid-card">
+            <div class="table-tools">
+              <div>
+                <h2>Clientes</h2>
+                <p id="clientCount">0 registros</p>
+              </div>
+              <div class="search">
+                <span>⌕</span
+                ><input id="searchInput" placeholder="Buscar cliente..." />
+              </div>
+            </div>
+            <div id="clientsTableWrap" class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>CLIENTE</th>
+                    <th>TOTAL COMPRAS</th>
+                    <th>ENGANCHES</th>
+                    <th>ABONADO</th>
+                    <th>DEUDA ACTUAL</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="clientsBody"></tbody>
+              </table>
+            </div>
+            <div id="emptyState" class="empty hidden">
+              <span>◎</span>
+              <h3>Aún no hay clientes</h3>
+              <p>Agrega el primero para comenzar a registrar sus compras.</p>
+            </div>
+          </section>
+        </div>
+        <div id="historyView" class="hidden">
+          <header>
+            <div>
+              <p class="eyebrow">CUENTAS TERMINADAS</p>
+              <h1>Historial</h1>
+              <p>Consulta las cuentas que ya fueron saldadas.</p>
+            </div>
+            <button id="downloadPdfBtn" class="primary">↓ Descargar PDF</button>
+          </header>
+          <section class="table-card liquid-card">
+            <div class="table-tools">
+              <div>
+                <h2>Cuentas saldadas</h2>
+                <p id="historyCount">0 registros</p>
+              </div>
+              <div class="search">
+                <span>⌕</span
+                ><input id="historySearch" placeholder="Buscar por nombre..." />
+              </div>
+            </div>
+            <div id="historyTableWrap" class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>CLIENTE</th>
+                    <th>TOTAL COMPRAS</th>
+                    <th>ENGANCHES</th>
+                    <th>ABONOS</th>
+                    <th>ESTADO</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="historyBody"></tbody>
+              </table>
+            </div>
+            <div id="historyEmpty" class="empty hidden">
+              <span>◷</span>
+              <h3>Sin cuentas saldadas</h3>
+              <p>Cuando un cliente termine de pagar aparecerá aquí.</p>
+            </div>
+          </section>
+        </div>
+        <div id="productsView" class="hidden">
+          <header><div><p class="eyebrow">INVENTARIO</p><h1>Productos</h1><p>Administra los artículos disponibles para venta.</p></div><button id="newProductBtn" class="primary">＋ Nuevo producto</button></header>
+          <section class="table-card liquid-card">
+            <div class="table-tools"><div><h2>Catálogo</h2><p id="productCount">0 productos</p></div><div class="catalog-filters"><select id="providerFilter"><option value="">Todos los proveedores</option></select><select id="codeFilter"><option value="">Todos los códigos</option></select><div class="search"><span>⌕</span><input id="productSearch" placeholder="Buscar producto..." /></div></div></div>
+            <div id="productsTableWrap" class="table-wrap"><table><thead><tr><th>CÓDIGO</th><th>PRODUCTO</th><th>PROVEEDOR</th><th>PRECIO COMPRA</th><th>PRECIO VENTA</th><th>GANANCIA UNITARIA</th><th>STOCK</th><th>REGISTRO</th><th></th></tr></thead><tbody id="productsBody"></tbody></table></div>
+            <div id="productsEmpty" class="empty hidden"><span>◇</span><h3>Sin productos</h3><p>Agrega productos para comenzar a venderlos.</p></div>
+          </section>
+        </div>
+        <div id="providersView" class="hidden">
+          <header><div><p class="eyebrow">DIRECTORIO</p><h1>Proveedores</h1><p>Administra las personas y empresas que surten tu inventario.</p></div><button id="newProviderBtn" class="primary">＋ Nuevo proveedor</button></header>
+          <section class="table-card liquid-card"><div class="table-tools"><div><h2>Directorio de proveedores</h2><p id="providerCount">0 proveedores</p></div><div class="search"><span>⌕</span><input id="providerSearch" placeholder="Buscar proveedor..." /></div></div><div id="providersTableWrap" class="table-wrap"><table><thead><tr><th>PROVEEDOR</th><th>CONTACTO</th><th>TELÉFONO</th><th>REGISTRO</th><th></th></tr></thead><tbody id="providersBody"></tbody></table></div><div id="providersEmpty" class="empty hidden"><span>♧</span><h3>Sin proveedores</h3><p>Agrega el primero para asignarlo a tus productos.</p></div></section>
+        </div>
+        <div id="investmentView" class="hidden">
+          <header><div><p class="eyebrow">RESUMEN FINANCIERO</p><h1>Inversión y ganancias</h1><p>Valor actual del inventario y utilidad de productos vendidos.</p></div></header>
+          <section class="stats investment-stats"><article class="liquid-card"><span class="stat-icon violet">$</span><div><small>INVENTARIO AL COSTO</small><strong id="purchaseInvestment">$0.00</strong></div></article><article class="liquid-card"><span class="stat-icon blue">＋</span><div><small>GASTOS ACUMULADOS</small><strong id="totalExpenses">$0.00</strong></div></article><article class="liquid-card"><span class="stat-icon violet">∑</span><div><small>INVERSIÓN TOTAL</small><strong id="totalInvestment">$0.00</strong></div></article><article class="liquid-card"><span class="stat-icon blue">↗</span><div><small>VALOR VENTA INVENTARIO</small><strong id="retailInvestment">$0.00</strong></div></article><article class="liquid-card"><span class="stat-icon green">✓</span><div><small>GANANCIAS REALIZADAS</small><strong id="totalProfit">$0.00</strong></div></article></section>
+          <section class="table-card liquid-card"><div class="table-tools"><div><h2>Ganancias por producto</h2><p id="soldUnits">0 unidades vendidas</p></div></div><div id="investmentTableWrap" class="table-wrap"><table><thead><tr><th>PRODUCTO</th><th>VENDIDOS</th><th>INGRESOS</th><th>COSTO DE LO VENDIDO</th><th>GANANCIA REAL</th></tr></thead><tbody id="investmentBody"></tbody></table></div></section>
+          <section class="table-card liquid-card expense-card"><div class="table-tools"><div><h2>Gastos</h2><p id="expenseCount">0 gastos registrados</p></div><button id="newExpenseBtn" class="primary">＋ Registrar gasto</button></div><div id="expensesTableWrap" class="table-wrap"><table><thead><tr><th>FECHA</th><th>TIPO DE GASTO</th><th>DESCRIPCIÓN</th><th>CANTIDAD</th><th></th></tr></thead><tbody id="expensesBody"></tbody></table></div><div id="expensesEmpty" class="empty hidden"><span>$</span><h3>Sin gastos</h3><p>Registra envíos, pasajes u otros gastos del negocio.</p></div></section>
+        </div>
+        <div id="promotionsView" class="hidden">
+          <header><div><p class="eyebrow">PRECIOS ESPECIALES</p><h1>Promociones</h1><p>Aplica descuentos que se usarán automáticamente en nuevas ventas.</p></div><button id="newPromotionBtn" class="primary">＋ Nueva promoción</button></header>
+          <section class="table-card liquid-card">
+            <div class="table-tools"><div><h2>Promociones activas</h2><p id="promotionCount">0 promociones</p></div></div>
+            <div id="promotionsTableWrap" class="table-wrap"><table><thead><tr><th>CÓDIGO</th><th>PRODUCTO</th><th>PRECIO NORMAL</th><th>PRECIO PROMOCIÓN</th><th>DESCUENTO</th><th></th></tr></thead><tbody id="promotionsBody"></tbody></table></div>
+            <div id="promotionsEmpty" class="empty hidden"><span>％</span><h3>Sin promociones</h3><p>Crea una promoción para ofrecer un precio especial.</p></div>
+          </section>
+        </div>
+
+        <!-- Vista de Administración de Usuarios (Exclusiva para suprem) -->
+        <div id="usersView" class="hidden">
+          <header>
+            <div>
+              <p class="eyebrow">CONTROL DE ACCESO</p>
+              <h1>Administración de Usuarios</h1>
+              <p>Gestiona cuentas, roles y estado de acceso al sistema.</p>
+            </div>
+            <button id="newUserBtn" class="primary">＋ Nuevo usuario</button>
+          </header>
+          <section class="table-card liquid-card">
+            <div class="table-tools">
+              <div>
+                <h2>Usuarios registrados</h2>
+                <p id="usersCount">0 usuarios</p>
+              </div>
+              <div class="catalog-filters user-filters">
+                <select id="userRoleFilter">
+                  <option value="">Todos los roles</option>
+                  <option value="user">Solo user</option>
+                  <option value="suprem">Solo suprem</option>
+                </select>
+                <select id="userStatusFilter">
+                  <option value="">Todos los estados</option>
+                  <option value="active">Solo activos</option>
+                  <option value="inactive">Solo inactivos</option>
+                </select>
+                <select id="userSortFilter">
+                  <option value="creadoEn-desc">Más recientes primero</option>
+                  <option value="creadoEn-asc">Más antiguos primero</option>
+                  <option value="name-asc">Nombre (A - Z)</option>
+                  <option value="name-desc">Nombre (Z - A)</option>
+                  <option value="email-asc">Correo (A - Z)</option>
+                  <option value="role-desc">Rol (suprem primero)</option>
+                </select>
+                <div class="search">
+                  <span>⌕</span>
+                  <input id="userSearchInput" placeholder="Buscar por nombre, usuario o correo..." />
+                </div>
+              </div>
+            </div>
+            <div id="usersTableWrap" class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>NOMBRE COMPLETO</th>
+                    <th>USUARIO</th>
+                    <th>CORREO ELECTRÓNICO</th>
+                    <th>ROL</th>
+                    <th>ESTADO</th>
+                    <th>REGISTRO</th>
+                    <th>ACCIONES</th>
+                  </tr>
+                </thead>
+                <tbody id="usersBody"></tbody>
+              </table>
+            </div>
+            <div id="usersEmpty" class="empty hidden">
+              <span>👥</span>
+              <h3>No se encontraron usuarios</h3>
+              <p>No hay cuentas que coincidan con los criterios de búsqueda.</p>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+
+    <template id="storeViewTpl">
+      <div id="storeView" class="hidden">
+        <header><div><p class="eyebrow">CATÁLOGO</p><h1>Editar mi tienda</h1><p>Actualiza el nombre y la apariencia de tu catálogo.</p></div></header>
+        <section class="liquid-card" style="max-width:680px;padding:28px 32px;margin-top:20px">
+          <form id="storeForm">
+            <div id="storeLinkBanner" class="hidden" style="background:var(--violet-light,#f0ebff);border:1px solid var(--line);border-radius:10px;padding:14px 18px;margin-bottom:24px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+              <span style="font-size:20px">🔗</span><div style="flex:1;min-width:200px"><p style="margin:0;font-size:13px;color:var(--muted)">Enlace del catálogo</p><a id="storeLinkUrl" href="#" target="_blank" rel="noopener" style="font-weight:700;color:var(--blue);word-break:break-all"></a></div>
+              <button type="button" id="copyStoreLink" class="secondary" style="font-size:13px;padding:7px 16px">Copiar enlace</button>
+            </div>
+            <div class="field-row">
+              <label style="flex:1">Nombre de la tienda<input id="storeNombre" name="nombre" required maxlength="80" /></label>
+              <label style="flex:1">URL (slug)<input id="storeSlug" name="slug" required maxlength="60" pattern="[a-z0-9-]+" title="Solo letras minúsculas, números y guiones" /><small style="color:var(--muted);font-size:12px;margin-top:4px;display:block">Este texto forma parte del enlace de tu catálogo.</small></label>
+            </div>
+            <label>Descripción breve<input id="storeDescripcion" name="descripcion" maxlength="300" /></label>
+            <label>Fondo de la tienda <span>(se verá detrás del nombre y la descripción · PNG, JPG, WebP o GIF · máximo 2 MB)</span><input id="storeLogoFile" type="file" accept="image/png,image/jpeg,image/webp,image/gif" /></label>
+            <input id="storeLogoUrl" name="logoUrl" type="hidden" />
+            <div id="storeLogoPreview" class="store-logo-preview"><span>Sin fondo seleccionado</span></div>
+            <button type="button" id="clearStoreLogo" class="secondary">Quitar fondo</button>
+            <label>Color de acento<div style="display:flex;gap:10px;align-items:center"><input id="storeColorAcento" type="color" value="#8b6f4e" style="width:48px;height:36px;padding:2px" /><input id="storeColorHex" name="colorAcento" type="text" maxlength="9" placeholder="#8b6f4e" style="flex:1" /></div></label>
+            <div class="actions" style="margin-top:24px"><button type="submit" class="primary" id="storeSubmitBtn">Guardar cambios</button></div>
+          </form>
+        </section>
+      </div>
+    </template>
+
+    <!-- Diálogo para crear o editar usuarios (exclusivo para suprem) -->
+    <dialog id="userDialog">
+      <form id="userForm" method="dialog">
+        <div class="modal-head">
+          <div>
+            <p class="eyebrow">ADMINISTRACIÓN</p>
+            <h2 id="userModalTitle">Nuevo usuario</h2>
+          </div>
+          <button type="button" class="close">×</button>
+        </div>
+        <input type="hidden" name="id" />
+        <label>Nombre completo<input name="name" required maxlength="80" placeholder="Ej. Roberto Gómez" /></label>
+        <label>Nombre de usuario<input name="username" required minlength="3" maxlength="30" pattern="^[a-zA-Z0-9._-]+$" title="De 3 a 30 caracteres alfanuméricos" placeholder="Ej. robertog" /></label>
+        <label>Correo electrónico<input name="email" type="email" required placeholder="roberto@ejemplo.com" /></label>
+        <label id="userPasswordLabel">Contraseña <span id="userPasswordHelp">(mínimo 8 caracteres)</span><input name="password" type="password" minlength="8" placeholder="••••••••" /></label>
+        <div class="field-row">
+          <label>Rol en el sistema
+            <select name="role" required>
+              <option value="user">user (Normal)</option>
+              <option value="suprem">suprem (Administrador)</option>
+            </select>
+          </label>
+          <label>Estado de la cuenta
+            <select name="isActive" required>
+              <option value="true">Activo</option>
+              <option value="false">Inactivo (bloqueado)</option>
+            </select>
+          </label>
+        </div>
+        <div class="actions">
+          <button type="button" class="secondary close">Cancelar</button>
+          <button class="primary" type="submit">Guardar usuario</button>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- Diálogo para crear o editar los datos de un cliente. -->
+    <dialog id="clientDialog">
+      <form id="clientForm" method="dialog">
+        <div class="modal-head">
+          <div>
+            <p class="eyebrow">CLIENTE</p>
+            <h2 id="clientTitle">Nuevo cliente</h2>
+          </div>
+          <button type="button" class="close">×</button>
+        </div>
+        <input type="hidden" name="id" /><label
+          >Nombre completo<input
+            name="nombre"
+            required
+            placeholder="Ej. María López" /></label
+        ><label
+          >Teléfono <span>(opcional)</span
+          ><input name="telefono" placeholder="Ej. 555 123 4567"
+        /></label>
+        <div class="actions">
+          <button type="button" class="secondary close">Cancelar</button
+          ><button class="primary" type="submit">Guardar cliente</button>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- Diálogo con el saldo y los movimientos del cliente. -->
+    <dialog id="detailDialog" class="detail-dialog">
+      <div class="detail-shell">
+        <div class="modal-head">
+          <div>
+            <p class="eyebrow">ESTADO DE CUENTA</p>
+            <h2 id="detailName">Cliente</h2>
+            <p id="detailPhone"></p>
+          </div>
+          <button type="button" class="close">×</button>
+        </div>
+        <section class="balance">
+          <div>
+            <small>SALDO PENDIENTE</small><strong id="detailDebt">$0.00</strong>
+          </div>
+          <div class="detail-actions">
+            <button id="purchaseBtn" class="secondary">＋ Nueva compra</button
+            ><button id="paymentBtn" class="primary">$ Registrar abono</button>
+          </div>
+        </section>
+        <div class="tabs">
+          <button class="tab active" data-tab="purchases">Compras</button
+          ><button class="tab" data-tab="payments">Abonos</button>
+        </div>
+        <div id="movementsList" class="movements"></div>
+      </div>
+    </dialog>
+
+    <dialog id="productDialog">
+      <form id="productForm" method="dialog">
+        <div class="modal-head"><div><p class="eyebrow">INVENTARIO</p><h2 id="productTitle">Nuevo producto</h2></div><button type="button" class="close">×</button></div>
+        <input type="hidden" name="id" />
+        <label>Código identificador<input name="codigo" placeholder="Automático al crear · Ej. PROD-1" /></label>
+        <label>Proveedor<select id="productProvider" name="proveedorId" required><option value="">Selecciona un proveedor...</option></select></label>
+        <label>Nombre del producto<input name="nombre" required placeholder="Ej. Refrigerador 11 pies" /></label>
+        <label>Imagen del producto <span>(selecciona un archivo · PNG, JPG, WebP o GIF · máximo 2 MB)</span><input id="productImageFile" type="file" accept="image/png,image/jpeg,image/webp,image/gif" /><input name="imagenUrl" type="hidden" /></label>
+        <div id="productImagePreview" class="product-image-preview"><span>La vista previa aparecerá aquí</span></div>
+        <div class="field-row"><label>Precio de compra<input name="precioCompra" type="number" min="0" step="0.01" required placeholder="0.00" /></label><label>Precio de venta<input name="precioVenta" type="number" min="0.01" step="0.01" required placeholder="0.00" /></label></div>
+        <label>Stock disponible<input name="stock" type="number" min="0" step="1" required value="1" /></label>
+        <div class="actions"><button type="button" class="secondary close">Cancelar</button><button class="primary" type="submit">Guardar producto</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="providerDialog">
+      <form id="providerForm" method="dialog"><div class="modal-head"><div><p class="eyebrow">DIRECTORIO</p><h2 id="providerTitle">Nuevo proveedor</h2></div><button type="button" class="close">×</button></div><input type="hidden" name="id" /><label>Nombre o empresa<input name="nombre" required placeholder="Ej. Distribuidora del Centro" /></label><label>Persona de contacto <span>(opcional)</span><input name="contacto" placeholder="Ej. María López" /></label><label>Teléfono <span>(opcional)</span><input name="telefono" placeholder="Ej. 555 123 4567" /></label><div class="actions"><button type="button" class="secondary close">Cancelar</button><button class="primary" type="submit">Guardar proveedor</button></div></form>
+    </dialog>
+
+    <dialog id="expenseDialog"><form id="expenseForm" method="dialog"><div class="modal-head"><div><p class="eyebrow">INVERSIÓN</p><h2 id="expenseTitle">Registrar gasto</h2></div><button type="button" class="close">×</button></div><input type="hidden" name="id" /><label>Tipo de gasto<select name="tipo" required><option value="">Selecciona...</option><option>Envío</option><option>Pasajes</option><option>Gasolina</option><option>Empaque</option><option>Publicidad</option><option>Otro</option></select></label><label>Descripción <span>(opcional)</span><input name="descripcion" placeholder="Ej. Viaje para recoger mercancía" /></label><label>Cantidad<input name="cantidad" type="number" min="0.01" step="0.01" required placeholder="0.00" /></label><div class="actions"><button type="button" class="secondary close">Cancelar</button><button class="primary" type="submit">Guardar gasto</button></div></form></dialog>
+
+    <dialog id="promotionDialog">
+      <form id="promotionForm" method="dialog">
+        <div class="modal-head"><div><p class="eyebrow">PRECIO ESPECIAL</p><h2 id="promotionTitle">Nueva promoción</h2></div><button type="button" class="close">×</button></div>
+        <input type="hidden" name="id" />
+        <label>Producto<select id="promotionProduct" name="productoId" required><option value="">Selecciona un producto...</option></select></label>
+        <div class="field-row"><label>Precio normal<input id="promotionRegularPrice" type="text" readonly placeholder="$0.00" /></label><label>Precio de promoción<input name="precioPromocion" type="number" min="0.01" step="0.01" required placeholder="0.00" /></label></div>
+        <div class="actions"><button type="button" class="secondary close">Cancelar</button><button class="primary" type="submit">Guardar promoción</button></div>
+      </form>
+    </dialog>
+
+    <!-- Diálogo reutilizable para compras y abonos. -->
+    <dialog id="movementDialog">
+      <form id="movementForm" method="dialog">
+        <div class="modal-head">
+          <div>
+            <p id="movementEyebrow" class="eyebrow">MOVIMIENTO</p>
+            <h2 id="movementTitle">Registrar</h2>
+          </div>
+          <button type="button" class="close">×</button>
+        </div>
+        <div id="purchaseFields">
+          <label>Producto<select id="saleProduct" name="productoId" required><option value="">Selecciona un producto...</option></select></label>
+          <div class="field-row">
+            <label>Precio de venta<input id="salePrice" type="text" readonly placeholder="$0.00" /></label><label
+              >Enganche<input
+                name="enganche"
+                type="number"
+                min="0"
+                step="0.01"
+                value="0"
+            /></label>
+          </div>
+        </div>
+        <div id="paymentFields">
+          <label
+            >Cantidad del abono<input
+              name="cantidad"
+              type="number"
+              min="0.01"
+              step="0.01"
+              placeholder="0.00" /></label
+          ><label
+            >Nota <span>(opcional)</span
+            ><input name="nota" placeholder="Ej. Pago semanal"
+          /></label>
+        </div>
+        <div class="actions">
+          <button type="button" class="secondary close">Cancelar</button
+          ><button class="primary" type="submit">Guardar movimiento</button>
+        </div>
+      </form>
+    </dialog>
+    <!-- Lógica de interacción de la interfaz. -->
+    <script src="/app.js"></script>
+  </body>
+</html>

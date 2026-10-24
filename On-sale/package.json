@@ -1,0 +1,24 @@
+{
+  "name": "cuentas-pagos",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Control de ventas a pagos, compras y abonos",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": "22.x"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "express-rate-limit": "^8.7.1",
+    "helmet": "^8.3.0",
+    "mongodb": "^6.12.0",
+    "pdfkit": "^0.20.1"
+  }
+}
