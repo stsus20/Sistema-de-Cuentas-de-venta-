@@ -53,8 +53,13 @@
     <!-- Catálogo principal -->
     <main id="catalogView" class="b-catalog hidden">
 
-      <!-- Hero de la tienda -->
+  <!-- Hero de la tienda con múltiples orbes multicolor animados -->
       <section class="b-hero" id="storeHero">
+        <div class="b-hero-orbs" aria-hidden="true">
+          <div class="orb-1"></div>
+          <div class="orb-2"></div>
+          <div class="orb-3"></div>
+        </div>
         <img id="storeHeroImage" class="b-hero__image hidden" alt="" aria-hidden="true" />
         <div class="b-hero__veil" aria-hidden="true"></div>
         <div class="b-hero__inner">
@@ -62,6 +67,8 @@
           <p id="storeDesc" class="b-hero__desc"></p>
         </div>
       </section>
+
+      
 
       <!-- Controles de búsqueda y filtros -->
       <section class="b-controls">
@@ -101,6 +108,7 @@
             <h3>Sin productos disponibles</h3>
             <p id="emptyText">No hay productos disponibles por el momento.</p>
           </div>
+
 
           <!-- Paginación -->
           <div id="pagination" class="b-pagination hidden"></div>
