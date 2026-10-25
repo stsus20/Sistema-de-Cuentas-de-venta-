@@ -30,32 +30,218 @@ function toast(msg, isError = false) {
   }
 })();
 
-// El botón del encabezado refleja y controla la sesión directamente desde la tienda.
+// El botón del encabezado refleja y controla la sesión desde la cookie HttpOnly.
 async function initSessionButton() {
   const button = $("#sessionBtn");
   if (!button) return;
-  const token = localStorage.getItem("cuentas_token");
-  if (!token) return;
 
   try {
-    const response = await fetch("/api/session", { headers: { Authorization: `Bearer ${token}` } });
-    if (!response.ok) {
-      localStorage.removeItem("cuentas_token");
-      return;
-    }
+    const response = await fetch("/api/session", { credentials: "same-origin" });
+    if (!response.ok) return;
     await response.json().catch(() => ({}));
     button.textContent = "Cerrar sesión";
     button.href = "#";
-    button.addEventListener("click", (event) => {
+    button.addEventListener("click", async (event) => {
       event.preventDefault();
-      localStorage.removeItem("cuentas_token");
-      button.textContent = "Iniciar sesión";
-      const returnTo = `${location.pathname}${location.search}${location.hash}`;
-      button.href = `/login?returnTo=${encodeURIComponent(returnTo)}`;
-      fetch("/api/logout", { method: "POST", headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
+      button.disabled = true;
+      await fetch("/api/logout", { method: "POST", credentials: "same-origin" }).catch(() => {});
+      location.reload();
     });
   } catch {
     // Si no se puede validar la sesión, se conserva el enlace para iniciar sesión.
+  }
+}
+
+// Aviso accesible cuando un visitante anónimo intenta usar el carrito.
+function showAuthRequired() {
+  const dialog = $("#authRequiredDialog");
+  const login = $("#authRequiredLogin");
+  const returnTo = `${location.pathname}${location.search}${location.hash}`;
+  if (login) login.href = `/login?returnTo=${encodeURIComponent(returnTo)}`;
+  if (dialog && typeof dialog.showModal === "function") {
+    dialog.showModal();
+  } else if (login) {
+    location.href = login.href;
+  }
+}
+
+$("#authRequiredCancel")?.addEventListener("click", () => $("#authRequiredDialog")?.close());
+$("#authRequiredDialog")?.addEventListener("click", (event) => {
+  if (event.target === event.currentTarget) event.currentTarget.close();
+});
+
+// ─── Microanimaciones del carrito ──────────────────────────────
+const prefersReducedMotion = () =>
+  matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+function cartPieceCount(items) {
+  return (Array.isArray(items) ? items : []).reduce(
+    (total, item) => total + (Number(item.cantidad) || 0),
+    0,
+  );
+}
+
+function setCartCount(pieces) {
+  const el = $("#cartCount");
+  if (el) el.textContent = String(pieces);
+}
+
+// Hace "saltar" el contador y dibuja un anillo alrededor del botón del carrito.
+function bumpCart() {
+  const cart = $("#cartBtn");
+  const count = $("#cartCount");
+  if (cart) {
+    cart.classList.remove("is-receiving");
+    void cart.offsetWidth; // reinicia la animación si se agrega varias veces seguidas
+    cart.classList.add("is-receiving");
+    clearTimeout(bumpCart._timer);
+    bumpCart._timer = setTimeout(() => cart.classList.remove("is-receiving"), 760);
+  }
+  if (count) {
+    count.classList.remove("is-bumping");
+    void count.offsetWidth;
+    count.classList.add("is-bumping");
+    clearTimeout(bumpCart._countTimer);
+    bumpCart._countTimer = setTimeout(() => count.classList.remove("is-bumping"), 600);
+  }
+}
+
+// Vuela una miniatura del producto hasta el botón del carrito siguiendo un arco.
+function flyToCart(btn) {
+  const cart = $("#cartBtn");
+  if (!cart) return;
+  if (prefersReducedMotion()) {
+    bumpCart();
+    return;
+  }
+
+  const card = btn.closest(".b-card");
+  const image = card?.querySelector(".b-card__img");
+  const source = (image || btn).getBoundingClientRect();
+  const target = cart.getBoundingClientRect();
+  const startX = source.left + source.width / 2;
+  const startY = source.top + source.height / 2;
+  const endX = target.left + target.width / 2;
+  const endY = target.top + target.height / 2;
+  const size = 62;
+
+  const chip = document.createElement("div");
+  chip.className = "b-fly";
+  chip.setAttribute("aria-hidden", "true");
+  chip.style.left = `${startX - size / 2}px`;
+  chip.style.top = `${startY - size / 2}px`;
+
+  if (image && image.currentSrc) {
+    const copy = document.createElement("img");
+    copy.src = image.currentSrc;
+    copy.alt = "";
+    chip.appendChild(copy);
+  } else {
+    chip.classList.add("b-fly--glyph");
+    chip.innerHTML =
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 7h12l1 13H5L6 7Z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg>';
+  }
+
+  document.body.appendChild(chip);
+
+  const dx = endX - startX;
+  const dy = endY - startY;
+  const animation = chip.animate(
+    [
+      { transform: "translate3d(0, 0, 0) scale(1) rotate(0deg)", opacity: 1, offset: 0 },
+      {
+        transform: `translate3d(${dx * 0.5}px, ${dy * 0.5 - 70}px, 0) scale(.72) rotate(-8deg)`,
+        opacity: 1,
+        offset: 0.55,
+      },
+      {
+        transform: `translate3d(${dx}px, ${dy}px, 0) scale(.15) rotate(6deg)`,
+        opacity: 0,
+        offset: 1,
+      },
+    ],
+    { duration: 820, easing: "cubic-bezier(.24,.66,.25,1)", fill: "forwards" },
+  );
+
+  const finish = () => {
+    if (finish._done) return;
+    finish._done = true;
+    animation.cancel();
+    chip.remove();
+    bumpCart();
+  };
+
+  animation.finished.then(finish).catch(() => {});
+  // El temporizador garantiza que el contador reaccione aunque el navegador
+  // pause las animaciones (pestaña oculta o en segundo plano).
+  setTimeout(finish, 900);
+}
+
+function resetAddButton(btn) {
+  clearTimeout(btn._loadTimer);
+  clearTimeout(btn._doneTimer);
+  delete btn.dataset.state;
+  btn.removeAttribute("aria-busy");
+  btn.removeAttribute("aria-label");
+}
+
+// Secuencia completa: espera breve -> spinner -> check + vuelo + contador.
+async function addToCart(btn) {
+  const pid = btn.getAttribute("data-id");
+  if (!pid || btn.disabled) return;
+
+  resetAddButton(btn);
+  const before = Number($("#cartCount")?.textContent) || 0;
+  btn.disabled = true;
+  btn.dataset.state = "pending";
+  btn._loadTimer = setTimeout(() => {
+    if (btn.dataset.state === "pending") {
+      btn.dataset.state = "loading";
+      btn.setAttribute("aria-busy", "true");
+    }
+  }, 140);
+
+  try {
+    const res = await fetch("/api/carrito", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ productoId: pid, cantidad: 1 }),
+    });
+    if (res.status === 401) {
+      // Sin sesión no se agrega nada: no se guarda en localStorage, sessionStorage ni cookies.
+      resetAddButton(btn);
+      showAuthRequired();
+      return;
+    }
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "No se pudo agregar al carrito.");
+
+    clearTimeout(btn._loadTimer);
+    btn.removeAttribute("aria-busy");
+
+    const items = Array.isArray(data.items) ? data.items : null;
+    const after = items ? cartPieceCount(items) : before + 1;
+
+    // El servidor limita la cantidad al stock: si no cambió nada, se avisa.
+    if (data.cambio === false) {
+      resetAddButton(btn);
+      toast("Ya tienes el máximo disponible de este producto.", true);
+      return;
+    }
+
+    btn.dataset.state = "done";
+    btn.setAttribute("aria-label", "Producto agregado al carrito");
+    flyToCart(btn);
+    setCartCount(after);
+    toast("Producto agregado al carrito.");
+    btn._doneTimer = setTimeout(() => resetAddButton(btn), 1500);
+  } catch (err) {
+    resetAddButton(btn);
+    toast(err.message || "No se pudo agregar al carrito.", true);
+  } finally {
+    btn.disabled = false;
   }
 }
 
@@ -150,6 +336,14 @@ function renderProducts() {
   if (empty) empty.classList.add("hidden");
 
   grid.innerHTML = productos.map((p) => cardHTML(p)).join("");
+  // Botones agregar al carrito
+  grid.querySelectorAll(".b-add-cart").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      addToCart(btn);
+    });
+  });
   grid.querySelectorAll(".b-card__img").forEach((img) => {
     img.addEventListener("error", () => {
       const placeholder = document.createElement("div");
@@ -168,20 +362,22 @@ function renderProducts() {
   });
 
   grid.querySelectorAll(".b-card[data-image]").forEach((card) => {
-    const openImage = () => {
+    const openImage = (ev) => {
+      if (ev.target && ev.target.classList && ev.target.classList.contains("b-add-cart")) return;
       if (!card.dataset.image) return;
       const dialog = $("#productImageDialog");
       const image = $("#productImageLarge");
       image.src = card.dataset.image;
       image.alt = card.dataset.name;
       $("#productImageCaption").textContent = card.dataset.name;
-      dialog.showModal();
+      if (dialog && typeof dialog.showModal === "function") dialog.showModal();
     };
     card.addEventListener("click", openImage);
     card.addEventListener("keydown", (event) => {
+      if (event.target && event.target.classList && event.target.classList.contains("b-add-cart")) return;
       if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
-        openImage();
+        openImage(event);
       }
     });
   });
@@ -221,6 +417,8 @@ function cardHTML(p) {
     ? `<span class="b-card__stock b-card__stock--low">¡Solo ${p.stock} disponibles!</span>`
     : `<span class="b-card__stock">${p.stock} en existencia</span>`;
 
+  const pid = p._id ? escHtml(String(p._id)) : "";
+
   return `
     <article class="b-card${imageUrl ? " b-card--zoomable" : ""}"${imageUrl ? ` data-image="${escHtml(imageUrl)}" data-name="${escHtml(p.nombre)}" role="button" tabindex="0" aria-label="Ampliar imagen de ${escHtml(p.nombre)}"` : ""}>
       <div class="b-card__img-wrap">
@@ -232,6 +430,14 @@ function cardHTML(p) {
         <h2 class="b-card__name">${escHtml(p.nombre)}</h2>
         <div class="b-card__prices">${prices}</div>
         ${stockNote}
+        <button class="b-btn b-btn--primary b-add-cart" type="button" data-id="${pid}" style="margin-top:10px; align-self:flex-start;">
+          <span class="b-add-cart__label">Agregar al carrito</span>
+          <span class="b-add-cart__state" aria-hidden="true">
+            <span class="b-add-cart__spinner"></span>
+            <svg class="b-add-cart__check" viewBox="0 0 24 24"><path d="M5 12.5l4.2 4.2L19 6.8"/></svg>
+            <span class="b-add-cart__done">Agregado</span>
+          </span>
+        </button>
       </div>
     </article>`;
 }
@@ -348,11 +554,31 @@ function initControls() {
   }
 }
 
+async function updateCartCount() {
+  const el = $("#cartCount");
+  if (!el) return;
+  try {
+    const res = await fetch("/api/carrito", { credentials: "same-origin" });
+    if (res.status === 401) {
+      setCartCount(0);
+      return;
+    }
+    const data = await res.json().catch(() => ({ items: [] }));
+    setCartCount(cartPieceCount(data.items));
+  } catch {
+    setCartCount(0);
+  }
+}
+
 // ─── Init ────────────────────────────────────────────────────────
 async function init() {
+  // Migración: las versiones anteriores guardaban un token en localStorage.
+  // La sesión ahora vive en una cookie HttpOnly y ese valor ya no se usa.
+  localStorage.removeItem("cuentas_token");
   initControls();
   $("#retryCatalogBtn")?.addEventListener("click", fetchCatalog);
   await initSessionButton();
+  await updateCartCount();
   await fetchCatalog();
 }
 

@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Mi carrito · On - sale</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/tienda.css" />
+    <style>
+      .b-cart-page { padding: clamp(24px, 4vw, 48px) 0 80px; }
+      .b-cart-header { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom: 24px; }
+      .b-cart-title { margin:0; font-family:"Cormorant Garamond", Georgia, serif; font-size: clamp(2rem, 5vw, 3.2rem); font-weight:500; }
+      .b-cart-sub { margin:4px 0 0; color: var(--b-muted); }
+      .b-cart-grid { display:grid; grid-template-columns: 1.6fr 1fr; gap: clamp(16px, 3vw, 28px); align-items:start; }
+      .b-cart-list { display:flex; flex-direction:column; gap:14px; }
+      .b-cart-item { display:grid; grid-template-columns: 96px 1fr auto; gap:16px; align-items:center; padding:14px; border:1px solid var(--b-border); border-radius: var(--b-radius); background: var(--b-surface); box-shadow: var(--b-shadow); }
+      .b-cart-item__img { width:96px; height:96px; object-fit:cover; border-radius: var(--b-radius-sm); background: var(--b-surface2); }
+      .b-cart-item__img-ph { width:96px; height:96px; display:flex; align-items:center; justify-content:center; border-radius: var(--b-radius-sm); background: radial-gradient(circle at 50% 40%, var(--b-accent-light), var(--b-surface2)); color: var(--b-muted); font-size:1.8rem; }
+      .b-cart-item__meta { display:flex; flex-direction:column; gap:6px; }
+      .b-cart-item__code { color: var(--b-muted); font-size:11px; letter-spacing:.1em; text-transform:uppercase; }
+      .b-cart-item__name { margin:0; font-family:"Cormorant Garamond", Georgia, serif; font-size:1.25rem; font-weight:600; }
+      .b-cart-item__actions { display:flex; flex-direction:column; align-items:flex-end; gap:10px; }
+      .b-cart-qty { display:flex; align-items:center; gap:10px; border:1px solid var(--b-border); border-radius:999px; padding:6px 10px; background: var(--b-surface); }
+      .b-cart-qty__btn { width:34px; height:34px; border-radius:50%; border:1px solid var(--b-border); background: var(--b-surface); color: var(--b-ink); }
+      .b-cart-qty__num { min-width:28px; text-align:center; font-weight:600; }
+      .b-cart-remove { border:none; background:transparent; color: var(--b-muted); font-size:13px; }
+      .b-cart-summary { border:1px solid var(--b-border); border-radius: var(--b-radius); background: var(--b-surface); box-shadow: var(--b-shadow); padding:20px; display:flex; flex-direction:column; gap:14px; position: sticky; top: calc(var(--b-header-h) + 16px); }
+      .b-cart-summary__row { display:flex; align-items:center; justify-content:space-between; color: var(--b-ink2); }
+      .b-cart-summary__total { padding-top:10px; border-top:1px solid var(--b-border); font-weight:600; font-size:1.05rem; }
+      .b-cart-empty { text-align:center; padding: clamp(40px, 8vw, 80px) 20px; border:1px solid var(--b-border); border-radius: var(--b-radius); background: var(--b-surface); }
+      .b-cart-empty__icon { font-size:2.6rem; display:block; margin-bottom:12px; }
+      @media (max-width: 980px) { .b-cart-grid { grid-template-columns: 1fr; } .b-cart-summary { position: static; } }
+      @media (max-width: 680px) { .b-cart-item { grid-template-columns: 76px 1fr; } .b-cart-item__actions { grid-column: 1 / -1; flex-direction:row; align-items:center; justify-content:space-between; } }
+    </style>
+  </head>
+  <body>
+    <div id="toast" class="b-toast" aria-live="polite"></div>
+    <header class="b-header" id="siteHeader">
+      <div class="b-header__inner">
+        <div class="b-header__brand">
+          <a id="storeLogo" href="/" class="b-logo"><span id="logoText">On - sale</span></a>
+          <p id="storeTagline" class="b-header__tagline"></p>
+        </div>
+        <div class="b-header__actions">
+          <button id="themeBtn" class="b-icon-btn" aria-label="Cambiar tema"><span class="sun-icon">☀</span><span class="moon-icon">☾</span></button>
+          <a href="/" class="b-btn b-btn--outline">Volver al catálogo</a>
+          <a id="sessionBtn" href="/login" class="b-btn b-btn--outline">Iniciar sesión</a>
+        </div>
+      </div>
+    </header>
+
+    <main class="b-cart-page">
+      <div class="b-container">
+        <div class="b-cart-header">
+          <div>
+            <h1 class="b-cart-title">Mi carrito</h1>
+            <p class="b-cart-sub">Revisa tus productos y contacta al vendedor por WhatsApp.</p>
+          </div>
+          <div style="display:flex; gap:10px; align-items:center;">
+            <span id="cartCountHeader" style="color:var(--b-muted);">0 piezas</span>
+          </div>
+        </div>
+
+        <div id="cartView">
+          <div class="b-cart-grid">
+            <div>
+              <div id="cartList" class="b-cart-list"></div>
+              <div id="cartEmpty" class="b-cart-empty hidden">
+                <span class="b-cart-empty__icon">🛒</span>
+                <h3 style="margin:0 0 10px; font-family:'Cormorant Garamond', Georgia, serif; font-size:1.8rem;">Tu carrito está vacío</h3>
+                <p style="margin:0 0 18px; color:var(--b-muted);">Agrega productos desde el catálogo para comenzar tu pedido.</p>
+                <a href="/" class="b-btn b-btn--primary">Explorar productos</a>
+              </div>
+            </div>
+            <aside class="b-cart-summary">
+              <div style="display:flex; align-items:center; justify-content:space-between;">
+                <h2 style="margin:0; font-family:'Cormorant Garamond', Georgia, serif; font-size:1.6rem;">Resumen</h2>
+                <button id="clearCartBtn" class="b-cart-remove">Vaciar carrito</button>
+              </div>
+              <div class="b-cart-summary__row">
+                <span>Cantidad total de piezas</span>
+                <span id="summaryPieces">0</span>
+              </div>
+              <div class="b-cart-summary__row b-cart-summary__total">
+                <span>Total de productos</span>
+                <span id="summaryItems">0</span>
+              </div>
+              <button id="whatsappBtn" class="b-btn b-btn--primary" style="width:100%;">Contacta con el vendedor</button>
+              <p style="margin:0; color:var(--b-muted); font-size:12px; text-align:center;">Al pulsar el botón se abrirá WhatsApp con el mensaje preparado. Aún deberás enviarlo desde ahí.</p>
+            </aside>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <footer class="b-footer">
+      <div class="b-container">
+        <p>Powered by <strong>On - sale</strong> · <a href="/login">Acceso administrativo</a></p>
+      </div>
+    </footer>
+
+    <script src="/carrito.js"></script>
+  </body>
+</html>

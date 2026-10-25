@@ -30,6 +30,7 @@
           <button id="themeBtn" class="b-icon-btn" aria-label="Cambiar tema">
             <span class="sun-icon">☀</span><span class="moon-icon">☾</span>
           </button>
+          <a id="cartBtn" href="/carrito" class="b-btn b-btn--outline">Carrito (<span id="cartCount">0</span>)</a>
           <a id="sessionBtn" href="/login" class="b-btn b-btn--outline">Iniciar sesión</a>
         </div>
       </div>
@@ -120,6 +121,16 @@
       <button id="closeProductImage" class="b-image-dialog__close" type="button" aria-label="Cerrar imagen">×</button>
       <img id="productImageLarge" alt="" />
       <p id="productImageCaption"></p>
+    </dialog>
+
+    <!-- Aviso de autenticación requerida para usar el carrito -->
+    <dialog id="authRequiredDialog" class="b-auth-dialog" aria-labelledby="authRequiredTitle">
+      <h2 id="authRequiredTitle">Inicia sesión</h2>
+      <p>Necesitas iniciar sesión para agregar productos al carrito</p>
+      <div class="b-auth-dialog__actions">
+        <button id="authRequiredCancel" class="b-btn b-btn--outline" type="button">Cancelar</button>
+        <a id="authRequiredLogin" class="b-btn b-btn--primary" href="/login">Iniciar sesión</a>
+      </div>
     </dialog>
 
     <!-- Footer -->

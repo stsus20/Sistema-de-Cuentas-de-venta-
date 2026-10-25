@@ -6,14 +6,15 @@ Aplicación web para administrar clientes, ventas a pagos, enganches y abonos, c
 
 - `GET /` sirve `public/tienda.html`: la única tienda pública, sin autenticación.
 - `GET /login` sirve `public/index.html`: acceso al panel administrativo.
-- Las rutas administrativas (`/api/productos`, `/api/clientes`, etc.) siguen protegidas con token y aíslan los datos por `ownerId`.
+- Las rutas administrativas y del carrito (`/api/productos`, `/api/clientes`, `/api/carrito`, etc.) están protegidas con una sesión en cookie `HttpOnly` y aíslan los datos por `ownerId`.
+- Las sesiones viven en la colección `sesiones` de MongoDB, caducan por inactividad (30 min) y por duración absoluta (8 h), y se invalidan cuando el proceso de Node.js se reinicia.
 - El catálogo público (`GET /api/tienda/productos`) reúne los productos con `stock > 0` de todas las cuentas con rol `suprem`.
 - Ya no existen tiendas individuales, slugs, publicación ni creación de tiendas. Las URLs antiguas `/tienda/:slug` redirigen a `/`.
 
 ## Ejecutar
 
 1. Asegúrate de tener acceso a MongoDB (local o Atlas).
-2. Copia `.env.example` como `.env` y completa `MONGODB_URI`, `DB_NAME` y `SESSION_SECRET`.
+2. Copia `.env.example` como `.env` y completa `MONGODB_URI` y `DB_NAME`.
 3. Instala y arranca:
 
 ```powershell
@@ -30,7 +31,8 @@ Abre `http://localhost:5000`. El catálogo público está en `/` y el acceso adm
 | `PORT` | No | Puerto HTTP. Render lo asigna automáticamente. |
 | `MONGODB_URI` | Sí | Cadena de conexión de MongoDB. |
 | `DB_NAME` | No | Nombre de la base. Por defecto `cuentas`. |
-| `SESSION_SECRET` | Sí en producción | Clave larga y aleatoria para firmar sesiones. |
+| `SESSION_SECRET` | No | Heredada de versiones anteriores; ya no se utiliza (las sesiones usan identificadores aleatorios guardados en MongoDB). |
+| `COOKIE_SECURE` | No | Fuerza `Secure` en la cookie de sesión (`true`/`false`). Por defecto se detecta automáticamente según HTTPS. |
 | `STORE_NAME` | No | Nombre visible de la tienda pública. |
 | `STORE_DESCRIPTION` | No | Descripción del hero de la tienda. |
 | `STORE_HERO_URL` | No | Imagen de fondo del hero (URL http(s) o ruta local). |

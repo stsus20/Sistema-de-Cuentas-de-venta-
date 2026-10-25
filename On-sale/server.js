@@ -13,8 +13,20 @@ const { MongoClient, ObjectId } = require("mongodb");
 const app = express();
 const PORT = Number(process.env.PORT) || 5000;
 const DB_NAME = process.env.DB_NAME || "cuentas";
-const SESSION_SECRET =
-  process.env.SESSION_SECRET || "cambia-esta-clave-en-produccion";
+
+// Render termina TLS en su proxy: una sola capa de confianza permite usar req.secure
+// y obtener la IP real sin aceptar cabeceras falsificadas por el cliente.
+app.set("trust proxy", 1);
+
+// Identificador único de esta ejecución. Vive solo en memoria, nunca se guarda en
+// archivos ni en la base de datos, y cambia en cada arranque del proceso: las sesiones
+// creadas por una ejecución anterior dejan de ser válidas automáticamente.
+const BOOT_ID = crypto.randomBytes(32).toString("hex");
+
+const SESSION_COOKIE = "onsale_sid";
+const SESSION_IDLE_MS = 30 * 60 * 1000; // 30 minutos de inactividad
+const SESSION_ABSOLUTE_MS = 8 * 60 * 60 * 1000; // 8 horas desde el inicio de sesión
+
 const mongo = new MongoClient(
   process.env.MONGODB_URI || "mongodb://127.0.0.1:27017",
 );
@@ -40,9 +52,21 @@ app.use(
 
 // Middleware global: recibe JSON con tamaño controlado y sirve interfaz estática
 app.use(express.json({ limit: "10mb" }));
+// Protección CSRF por mismo origen en peticiones que modifican datos.
+app.use(sameOriginOnly);
+// Las respuestas de API nunca deben reutilizarse desde cachés del navegador.
+app.use("/api", (_req, res, next) => {
+  res.set("Cache-Control", "no-store");
+  next();
+});
 // La portada pública es el catálogo. El panel de acceso queda disponible en /login.
 app.get("/", (_req, res) => res.sendFile(path.join(__dirname, "public", "tienda.html")));
-app.get("/login", (_req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
+app.get("/login", (_req, res) => {
+  res.set("Cache-Control", "no-store");
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+// El carrito no debe servirse como archivo estático: siempre pasa por la ruta protegida.
+app.get("/carrito.html", (_req, res) => res.redirect(301, "/carrito"));
 app.use(express.static(path.join(__dirname, "public"), { index: false }));
 
 // Rate limiting para login y registro (previene ataques de fuerza bruta y abusos)
@@ -92,7 +116,6 @@ const publicStore = {
 const money = (value) =>
   Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 const validId = (id) => typeof id === "string" && /^[0-9a-fA-F]{24}$/.test(id) && ObjectId.isValid(id);
-const b64 = (value) => Buffer.from(value).toString("base64url");
 
 // Expresión regular para validar formato de correo electrónico
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -129,79 +152,170 @@ async function verifyPassword(password, user) {
   return false;
 }
 
-// Genera un token firmado con HMAC-SHA256 con ID de sesión único
-function signToken(user) {
-  const payload = b64(
-    JSON.stringify({
-      sub: String(user._id),
-      username: user.username,
-      role: user.role || "user",
-      jti: crypto.randomBytes(16).toString("hex"),
-      exp: Date.now() + 12 * 60 * 60 * 1000, // 12 horas de caducidad
-    }),
-  );
-  const signature = crypto
-    .createHmac("sha256", SESSION_SECRET)
-    .update(payload)
-    .digest("base64url");
-  return `${payload}.${signature}`;
+// ─── Sesiones en MongoDB con cookie HttpOnly ─────────────────────────────────
+// La sesión se conserva en MongoDB (persistente y compatible con Render), pero
+// queda atada al BOOT_ID del proceso actual: una cookie emitida por un arranque
+// anterior no autoriza nada, aunque su documento siga en la base de datos.
+
+function parseCookies(header) {
+  const cookies = {};
+  String(header || "").split(";").forEach((part) => {
+    const index = part.indexOf("=");
+    if (index < 0) return;
+    const name = part.slice(0, index).trim();
+    if (!name) return;
+    const raw = part.slice(index + 1).trim();
+    try {
+      cookies[name] = decodeURIComponent(raw);
+    } catch {
+      cookies[name] = raw;
+    }
+  });
+  return cookies;
 }
 
-// Lee y verifica la integridad y vigencia del token
-function readToken(token) {
+function isSecureRequest(req) {
+  if (process.env.COOKIE_SECURE === "false") return false;
+  if (process.env.COOKIE_SECURE === "true") return true;
+  return req.secure || req.headers["x-forwarded-proto"] === "https";
+}
+
+// Sin maxAge ni expires: cookie de sesión del navegador. HttpOnly evita que
+// JavaScript (o cualquier XSS) pueda leer el identificador de sesión.
+function sessionCookieOptions(req) {
+  return {
+    httpOnly: true,
+    secure: isSecureRequest(req),
+    sameSite: "lax",
+    path: "/",
+  };
+}
+
+function setSessionCookie(req, res, sid) {
+  res.cookie(SESSION_COOKIE, sid, sessionCookieOptions(req));
+}
+
+function clearSessionCookie(req, res) {
+  res.clearCookie(SESSION_COOKIE, sessionCookieOptions(req));
+}
+
+function validSessionId(value) {
+  return typeof value === "string" && /^[A-Za-z0-9_-]{43}$/.test(value);
+}
+
+async function createSession(user) {
+  const sid = crypto.randomBytes(32).toString("base64url");
+  const now = new Date();
+  await db.collection("sesiones").insertOne({
+    _id: sid,
+    userId: new ObjectId(user._id),
+    bootId: BOOT_ID,
+    creadaEn: now,
+    ultimaActividad: now,
+    expiraEn: new Date(now.getTime() + SESSION_ABSOLUTE_MS),
+  });
+  return sid;
+}
+
+async function destroySession(sid) {
+  if (!validSessionId(sid)) return;
   try {
-    const parts = String(token).split(".");
-    if (parts.length !== 2) return null;
-    const [payload, signature] = parts;
-    const expected = crypto
-      .createHmac("sha256", SESSION_SECRET)
-      .update(payload)
-      .digest("base64url");
-    if (
-      !signature ||
-      signature.length !== expected.length ||
-      !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))
-    ) {
-      return null;
-    }
-    const data = JSON.parse(Buffer.from(payload, "base64url").toString());
-    return data && data.exp > Date.now() ? data : null;
-  } catch {
+    await db.collection("sesiones").deleteOne({ _id: sid });
+  } catch (error) {
+    console.error("No fue posible eliminar la sesión:", error?.message || error);
+  }
+}
+
+// Resuelve la sesión desde la cookie HttpOnly validando: proceso actual,
+// inactividad máxima, duración absoluta y estado de la cuenta.
+async function resolveSession(req) {
+  const sid = parseCookies(req.headers.cookie)[SESSION_COOKIE];
+  if (!validSessionId(sid)) return null;
+
+  const session = await db.collection("sesiones").findOne({ _id: sid });
+  if (!session) return null;
+
+  const now = Date.now();
+  const started = new Date(session.creadaEn).getTime();
+  const lastSeen = new Date(session.ultimaActividad || session.creadaEn).getTime();
+  const expiredByAge =
+    !Number.isFinite(started) ||
+    now - started > SESSION_ABSOLUTE_MS ||
+    (session.expiraEn && now > new Date(session.expiraEn).getTime());
+  const expiredByIdle = !Number.isFinite(lastSeen) || now - lastSeen > SESSION_IDLE_MS;
+
+  if (session.bootId !== BOOT_ID || expiredByAge || expiredByIdle) {
+    await destroySession(sid);
     return null;
   }
-}
 
-// Middleware de autenticación: verifica token y consulta base de datos para rol y estado activo en tiempo real
-async function auth(req, res, next) {
-  const token = (req.headers.authorization || "").replace(/^Bearer\s+/i, "");
-  const session = readToken(token);
-  if (!session || !validId(session.sub)) {
-    return res.status(401).json({ error: "Sesión inválida o vencida." });
+  const user = await db.collection("usuarios").findOne({ _id: session.userId });
+  if (!user || user.isActive === false) {
+    await destroySession(sid);
+    return null;
   }
 
-  try {
-    const user = await db.collection("usuarios").findOne({ _id: new ObjectId(session.sub) });
-    if (!user) {
-      return res.status(401).json({ error: "Cuenta no encontrada o sesión revocada." });
-    }
-    if (user.isActive === false) {
-      return res.status(403).json({ error: "Esta cuenta está desactivada. Contacta al administrador." });
-    }
+  // Refresca la actividad como máximo una vez por minuto para no escribir en cada petición.
+  if (now - lastSeen > 60 * 1000) {
+    await db.collection("sesiones").updateOne(
+      { _id: sid, bootId: BOOT_ID },
+      { $set: { ultimaActividad: new Date(now) } },
+    );
+  }
 
-    // Inyecta el usuario con datos validados directamente desde Atlas en cada solicitud
-    req.user = {
+  return {
+    sid,
+    user: {
       _id: user._id,
       id: String(user._id),
       username: user.username,
       name: user.name || user.username,
       email: user.email || "",
       role: user.role === "suprem" ? "suprem" : "user",
-      isActive: user.isActive !== false,
-    };
+      isActive: true,
+    },
+  };
+}
+
+// Middleware de autenticación: la identidad sale de la sesión validada en el
+// servidor, nunca de variables, cabeceras o datos enviados por el navegador.
+async function auth(req, res, next) {
+  try {
+    const session = await resolveSession(req);
+    if (!session) {
+      clearSessionCookie(req, res);
+      return res.status(401).json({ error: "Sesión inválida o vencida. Inicia sesión de nuevo." });
+    }
+    req.user = session.user;
+    req.sessionId = session.sid;
     next();
   } catch (error) {
+    console.error("Error al validar la sesión:", error?.message || error);
     return res.status(500).json({ error: "Error al validar la sesión." });
   }
+}
+
+// Protección CSRF para operaciones que modifican datos: el navegador debe enviar
+// un Origin/Referer del mismo host. SameSite=Lax actúa como segunda capa.
+function sameOriginOnly(req, res, next) {
+  if (!["POST", "PUT", "PATCH", "DELETE"].includes(req.method)) return next();
+  const expectedHost = req.get("host");
+  const matches = (value) => {
+    try {
+      return new URL(value).host === expectedHost;
+    } catch {
+      return false;
+    }
+  };
+  const origin = req.headers.origin;
+  const referer = req.headers.referer;
+  if (origin && !matches(origin)) {
+    return res.status(403).json({ error: "Origen de la solicitud no permitido." });
+  }
+  if (!origin && referer && !matches(referer)) {
+    return res.status(403).json({ error: "Origen de la solicitud no permitido." });
+  }
+  next();
 }
 
 // Solo la cuenta suprem cuyo username es "jesus" administra las cuentas del sistema.
@@ -418,10 +532,14 @@ app.post("/api/login", authLimiter, async (req, res) => {
     }
 
     const role = user.role === "suprem" ? "suprem" : "user";
-    const token = signToken({ ...user, role });
+
+    // Prevención de fijación de sesión: cualquier sesión previa se destruye y se
+    // emite un identificador nuevo tras autenticar correctamente.
+    await destroySession(parseCookies(req.headers.cookie)[SESSION_COOKIE]);
+    const sid = await createSession(user);
+    setSessionCookie(req, res, sid);
 
     res.json({
-      token,
       username: user.username,
       name: user.name || user.username,
       email: user.email || "",
@@ -531,10 +649,13 @@ app.post("/api/auth/google", authLimiter, async (req, res) => {
     }
 
     const role = user.role === "suprem" ? "suprem" : "user";
-    const appToken = signToken({ ...user, role });
+
+    // Misma prevención de fijación de sesión que en el inicio de sesión local.
+    await destroySession(parseCookies(req.headers.cookie)[SESSION_COOKIE]);
+    const sid = await createSession(user);
+    setSessionCookie(req, res, sid);
 
     res.json({
-      token: appToken,
       username: user.username,
       name: user.name || user.username,
       email: user.email || "",
@@ -546,7 +667,7 @@ app.post("/api/auth/google", authLimiter, async (req, res) => {
   }
 });
 
-// Confirma que el token y la cuenta siguen vigentes, devolviendo el rol actualizado
+// Confirma que la sesión de la cookie y la cuenta siguen vigentes.
 app.get("/api/session", auth, (req, res) => {
   res.json({
     id: req.user.id,
@@ -557,8 +678,12 @@ app.get("/api/session", auth, (req, res) => {
   });
 });
 
-// Cierre de sesión (el cliente elimina el token local)
-app.post("/api/logout", auth, (_req, res) => {
+// Cierre de sesión: invalida el documento en MongoDB y borra la cookie con los
+// mismos atributos con los que se creó. Responde ok aunque la sesión ya no exista.
+app.post("/api/logout", async (req, res) => {
+  const sid = parseCookies(req.headers.cookie)[SESSION_COOKIE];
+  await destroySession(sid);
+  clearSessionCookie(req, res);
   res.json({ ok: true, message: "Sesión cerrada correctamente." });
 });
 
@@ -1640,6 +1765,8 @@ app.get("/api/tienda/productos", async (req, res) => {
       // Solo exponer campos necesarios para el catálogo público.
       {
         $project: {
+          _id: 1,
+          ownerId: 1,
           nombre: 1,
           precioVenta: 1,
           precioFinal: 1,
@@ -1664,9 +1791,265 @@ app.get("/api/tienda/productos", async (req, res) => {
   } catch (error) { handleError(res, error); }
 });
 
+// CARRITO DE COMPRAS (por usuario autenticado)
+// Devuelve el carrito refrescando nombre, código, imagen y stock desde la base de
+// datos. Los productos eliminados o no publicados se retiran y se informan.
+app.get("/api/carrito", auth, async (req, res) => {
+  try {
+    const userId = req.user._id;
+    let carrito = await db.collection("carrito").findOne({ userId });
+    if (!carrito) {
+      carrito = { userId, items: [], actualizadoEn: new Date() };
+      await db.collection("carrito").insertOne(carrito);
+    }
+
+    const items = Array.isArray(carrito.items) ? carrito.items : [];
+    if (!items.length) return res.json({ items: [], removed: [] });
+
+    const supremos = await db
+      .collection("usuarios")
+      .find({ role: "suprem" }, { projection: { _id: 1 } })
+      .toArray();
+    const supremeIds = supremos.map((u) => String(u._id));
+
+    const refreshed = [];
+    const removed = [];
+    let changed = false;
+    for (const it of items) {
+      if (!validId(String(it.productoId))) {
+        removed.push(String(it.nombre || "Producto"));
+        changed = true;
+        continue;
+      }
+      const prod = await db.collection("productos").findOne({ _id: new ObjectId(it.productoId) });
+      const available =
+        prod &&
+        (prod.stock === undefined || prod.stock > 0) &&
+        supremeIds.includes(String(prod.ownerId));
+      if (!available) {
+        removed.push(String(prod?.nombre || it.nombre || "Producto"));
+        changed = true;
+        continue;
+      }
+      const cantidad = Math.min(
+        Number(it.cantidad) || 1,
+        prod.stock !== undefined ? prod.stock : Number(it.cantidad) || 1,
+      );
+      if (cantidad !== it.cantidad || prod.nombre !== it.nombre || (prod.codigo || "") !== (it.codigo || "")) {
+        changed = true;
+      }
+      refreshed.push({
+        ...it,
+        productoId: String(prod._id),
+        ownerId: prod.ownerId,
+        codigo: prod.codigo || "",
+        nombre: prod.nombre,
+        imagenUrl: prod.imagenUrl || prod.imagenes?.[0] || "",
+        cantidad,
+      });
+    }
+
+    if (changed) {
+      await db.collection("carrito").updateOne(
+        { userId },
+        { $set: { items: refreshed, actualizadoEn: new Date() } },
+      );
+    }
+
+    res.json({ items: refreshed, removed });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.post("/api/carrito", auth, async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const productoId = req.body.productoId;
+    const cantidad = Number.parseInt(req.body.cantidad, 10) || 1;
+    if (!validId(productoId)) {
+      return res.status(400).json({ error: "Producto inválido." });
+    }
+    const pid = new ObjectId(productoId);
+    const producto = await db.collection("productos").findOne({ _id: pid, stock: { $gt: 0 } });
+    if (!producto) {
+      return res.status(404).json({ error: "Producto no encontrado o no disponible." });
+    }
+    // Solo se aceptan productos publicados en el catálogo (pertenecen a un administrador supremo).
+    const publicOwner = await db.collection("usuarios").findOne(
+      { _id: producto.ownerId, role: "suprem" },
+      { projection: { _id: 1 } },
+    );
+    if (!publicOwner) {
+      return res.status(404).json({ error: "Producto no disponible en el catálogo." });
+    }
+    const qty = Math.min(cantidad < 1 ? 1 : cantidad, producto.stock);
+    let carrito = await db.collection("carrito").findOne({ userId });
+    if (!carrito) {
+      carrito = { userId, items: [], actualizadoEn: new Date() };
+      await db.collection("carrito").insertOne(carrito);
+    }
+    const items = Array.isArray(carrito.items) ? carrito.items : [];
+    const idx = items.findIndex((it) => String(it.productoId) === String(productoId));
+    const cantidadAntes = idx >= 0 ? Number(items[idx].cantidad) || 1 : 0;
+    if (idx >= 0) {
+      items[idx].cantidad = (Number(items[idx].cantidad) || 1) + qty;
+      if (producto.stock !== undefined && items[idx].cantidad > producto.stock) {
+        items[idx].cantidad = producto.stock;
+      }
+    } else {
+      items.push({
+        productoId: pid,
+        ownerId: producto.ownerId,
+        codigo: producto.codigo || "",
+        nombre: producto.nombre,
+        imagenUrl: producto.imagenUrl || producto.imagenes?.[0] || "",
+        cantidad: qty > (producto.stock || qty) ? (producto.stock || qty) : qty,
+        precioVenta: producto.precioVenta,
+        agregadoEn: new Date(),
+      });
+    }
+    await db.collection("carrito").updateOne({ userId }, { $set: { items, actualizadoEn: new Date() } }, { upsert: true });
+    const cantidadDespues = idx >= 0 ? items[idx].cantidad : items[items.length - 1].cantidad;
+    // Permite al cliente distinguir "agregado" de "ya tenía el máximo disponible".
+    res.json({ ok: true, items, cambio: Number(cantidadDespues) > cantidadAntes });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.put("/api/carrito/item", auth, async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const productoId = req.body.productoId;
+    const cantidad = Number.parseInt(req.body.cantidad, 10);
+    if (!validId(productoId)) return res.status(400).json({ error: "Producto inválido." });
+    if (!Number.isFinite(cantidad)) return res.status(400).json({ error: "Cantidad inválida." });
+    let carrito = await db.collection("carrito").findOne({ userId });
+    if (!carrito) return res.json({ items: [] });
+    let items = Array.isArray(carrito.items) ? carrito.items.slice() : [];
+    const idx = items.findIndex((it) => String(it.productoId) === String(productoId));
+    if (idx < 0) return res.json({ items });
+    if (cantidad <= 0) {
+      items.splice(idx, 1);
+    } else {
+      const pid = new ObjectId(productoId);
+      const producto = await db.collection("productos").findOne({ _id: pid });
+      if (producto && producto.stock !== undefined && cantidad > producto.stock) {
+        items[idx].cantidad = producto.stock;
+      } else {
+        items[idx].cantidad = cantidad;
+      }
+    }
+    await db.collection("carrito").updateOne({ userId }, { $set: { items, actualizadoEn: new Date() } });
+    res.json({ ok: true, items });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.delete("/api/carrito/item/:productoId", auth, async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const productoId = req.params.productoId;
+    if (!validId(productoId)) return res.status(400).json({ error: "Producto inválido." });
+    let carrito = await db.collection("carrito").findOne({ userId });
+    if (!carrito) return res.json({ items: [] });
+    let items = Array.isArray(carrito.items) ? carrito.items : [];
+    items = items.filter((it) => String(it.productoId) !== String(productoId));
+    await db.collection("carrito").updateOne({ userId }, { $set: { items, actualizadoEn: new Date() } });
+    res.json({ ok: true, items });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.delete("/api/carrito", auth, async (req, res) => {
+  try {
+    const userId = req.user._id;
+    await db.collection("carrito").updateOne({ userId }, { $set: { items: [], actualizadoEn: new Date() } }, { upsert: true });
+    res.json({ ok: true, items: [] });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.post("/api/carrito/validar", auth, async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const carrito = await db.collection("carrito").findOne({ userId });
+    const items = Array.isArray(carrito?.items) ? carrito.items : [];
+
+    // Los datos del pedido se reconstruyen desde la base de datos: nombre, código
+    // e identificador reales. Nunca se confía en lo que guardó el navegador.
+    const supremos = await db
+      .collection("usuarios")
+      .find({ role: "suprem" }, { projection: { _id: 1 } })
+      .toArray();
+    const supremeIds = supremos.map((u) => String(u._id));
+
+    const validated = [];
+    const kept = [];
+    const removed = [];
+    for (const it of items) {
+      if (!validId(String(it.productoId))) continue;
+      const pid = new ObjectId(it.productoId);
+      const prod = await db.collection("productos").findOne({ _id: pid });
+      const available =
+        prod &&
+        (prod.stock === undefined || prod.stock > 0) &&
+        supremeIds.includes(String(prod.ownerId));
+      if (!available) {
+        removed.push(String(it.nombre || it.codigo || it.productoId));
+        continue;
+      }
+      const qty = Math.min(
+        Number(it.cantidad) || 1,
+        prod.stock !== undefined ? prod.stock : Number(it.cantidad) || 1,
+      );
+      kept.push({ ...it, cantidad: qty });
+      validated.push({
+        productoId: String(prod._id),
+        codigo: prod.codigo || it.codigo || "",
+        nombre: prod.nombre,
+        cantidad: qty,
+        ownerId: prod.ownerId,
+      });
+    }
+
+    // Depura el carrito para que el usuario vea exactamente lo que puede pedir.
+    if (removed.length) {
+      await db.collection("carrito").updateOne(
+        { userId },
+        { $set: { items: kept, actualizadoEn: new Date() } },
+      );
+    }
+
+    res.json({ items: validated, removed });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
 // Las URLs antiguas por tienda siguen siendo válidas, pero llevan al catálogo único.
 app.get("/tienda", (_req, res) => res.redirect(301, "/"));
 app.get("/tienda/:slug", (_req, res) => res.redirect(301, "/"));
+
+// Vista del carrito: navegación normal protegida en el servidor. Sin sesión válida
+// se redirige al login conservando la ruta de retorno; el carrito nunca se sirve a ciegas.
+app.get("/carrito", async (req, res) => {
+  res.set("Cache-Control", "no-store");
+  let authenticated = false;
+  try {
+    authenticated = Boolean(await resolveSession(req));
+  } catch (error) {
+    console.error("Error al validar la navegación al carrito:", error?.message || error);
+  }
+  if (!authenticated) {
+    return res.redirect(302, `/login?returnTo=${encodeURIComponent("/carrito")}`);
+  }
+  res.sendFile(path.join(__dirname, "public", "carrito.html"));
+});
 
 // ==========================================
 // BOOTSTRAP: Conexión y arranque del servidor
@@ -1676,6 +2059,15 @@ app.get("/tienda/:slug", (_req, res) => res.redirect(301, "/"));
 async function bootstrap() {
   await mongo.connect();
   db = mongo.db(DB_NAME);
+
+  // Índices del carrito y de las sesiones (TTL para la caducidad absoluta).
+  try {
+    await db.collection("carrito").createIndex({ userId: 1 }, { unique: true });
+    await db.collection("sesiones").createIndex({ expiraEn: 1 }, { expireAfterSeconds: 0 });
+    await db.collection("sesiones").createIndex({ userId: 1 });
+  } catch (error) {
+    console.error("No fue posible crear los índices de carrito/sesiones:", error?.message || error);
+  }
 
   // Intentar eliminar índices globales antiguos si existen para evitar conflictos de unicidad inter-empresa
   const oldIndexesToDrop = [

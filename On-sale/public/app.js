@@ -9,7 +9,9 @@ const dateFmt = (value) =>
   new Intl.DateTimeFormat("es-MX", { dateStyle: "medium" }).format(
     new Date(value),
   );
-let token = localStorage.getItem("cuentas_token");
+// La sesión se guarda en una cookie HttpOnly emitida por el servidor.
+// Este valor anterior ya no se utiliza y se elimina para no dejar rastros.
+localStorage.removeItem("cuentas_token");
 let currentUser = null; // Guarda { id, username, name, email, role }
 let clients = [];
 let historyClients = [];
@@ -57,18 +59,23 @@ $("#themeBtn").addEventListener("click", () => {
   localStorage.setItem("cuentas_theme", dark ? "dark" : "light");
 });
 
-// Cliente HTTP centralizado: agrega autenticación y traduce errores de la API.
+// Cliente HTTP centralizado: envía la cookie de sesión y traduce errores de la API.
 async function api(url, options = {}) {
   const response = await fetch(url, {
     ...options,
+    credentials: "same-origin",
     headers: {
       "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options.headers,
     },
   });
   const data = await response.json().catch(() => ({}));
-  if (response.status === 401 && url !== "/api/login" && url !== "/api/register") {
+  if (
+    response.status === 401 &&
+    url !== "/api/login" &&
+    url !== "/api/register" &&
+    url !== "/api/session"
+  ) {
     logout();
   }
   if (!response.ok)
@@ -130,12 +137,9 @@ function escapeHtml(str) {
 }
 
 
-// Cierra la sesión y vuelve a la tienda, limpiando las colecciones en memoria.
+// Cierra la sesión en el servidor y vuelve a la tienda, limpiando las colecciones en memoria.
 async function logout() {
-  const previousToken = token;
-  token = null;
   currentUser = null;
-  localStorage.removeItem("cuentas_token");
 
   // Limpiar completamente el estado y cachés en memoria para aislamiento estricto
   clients = [];
@@ -159,8 +163,10 @@ async function logout() {
   if ($("#userSearchInput")) $("#userSearchInput").value = "";
 
   $("#appView").classList.add("hidden");
-  if (previousToken) {
-    fetch("/api/logout", { method: "POST", headers: { Authorization: `Bearer ${previousToken}` } }).catch(() => {});
+  try {
+    await fetch("/api/logout", { method: "POST", credentials: "same-origin" });
+  } catch {
+    // Aunque falle la red, la interfaz vuelve al estado no autenticado.
   }
   location.replace("/");
 }
@@ -175,7 +181,7 @@ $("#showLoginBtn").addEventListener("click", () => {
   $("#loginForm").classList.remove("hidden");
 });
 
-// Envía las credenciales y guarda el token de sesión.
+// Envía las credenciales; el servidor responde con la cookie de sesión HttpOnly.
 $("#loginForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = new FormData(event.currentTarget);
@@ -188,8 +194,6 @@ $("#loginForm").addEventListener("submit", async (event) => {
       method: "POST",
       body: JSON.stringify(Object.fromEntries(form)),
     });
-    token = data.token;
-    localStorage.setItem("cuentas_token", token);
     showApp(data);
     if (data.role === "suprem") notify(`Bienvenido, ${data.name || data.username}`);
   } catch (error) {
@@ -451,8 +455,12 @@ $("#downloadPdfBtn").addEventListener("click", async () => {
   try {
     const response = await fetch(
       `/api/historial/pdf?q=${encodeURIComponent($("#historySearch").value)}`,
-      { headers: { Authorization: `Bearer ${token}` } },
+      { credentials: "same-origin" },
     );
+    if (response.status === 401) {
+      logout();
+      throw new Error("Sesión vencida. Inicia sesión de nuevo.");
+    }
     if (!response.ok) throw new Error("No fue posible generar el PDF.");
     const blob = await response.blob();
     const url = URL.createObjectURL(blob);
@@ -971,14 +979,14 @@ $$("dialog").forEach((dialog) =>
   }),
 );
 
-// Restaura la sesión existente cuando se recarga la página.
+// Restaura la sesión existente cuando se recarga la página. Sin cookie válida
+// simplemente se mantiene el formulario de acceso.
 (async () => {
-  if (!token) return;
   try {
     const session = await api("/api/session");
     showApp(session);
   } catch {
-    logout();
+    // Sesión ausente o vencida: no se redirige desde el propio login.
   }
 })();
 
@@ -1042,8 +1050,6 @@ async function handleGoogleLogin(credential, isRegister) {
       method: "POST",
       body: JSON.stringify({ credential }),
     });
-    token = data.token;
-    localStorage.setItem("cuentas_token", token);
     showApp(data);
     notify(`Bienvenido, ${data.name || data.username}`);
   } catch (err) {
