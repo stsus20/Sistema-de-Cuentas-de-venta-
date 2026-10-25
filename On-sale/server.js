@@ -474,6 +474,31 @@ app.post("/api/register", authLimiter, async (req, res) => {
     const result = await db.collection("usuarios").insertOne(newUser);
     newUser._id = result.insertedId;
 
+    // Crear cliente automáticamente asociado al administrador suprem
+    try {
+      const owner =
+        (await db.collection("usuarios").findOne({ role: "suprem", username: "jesus" })) ||
+        (await db.collection("usuarios").findOne({ role: "suprem" }));
+      if (owner && newUser.telefono) {
+        const existsCliente = await db.collection("clientes").findOne({
+          ownerId: owner._id,
+          $or: [{ userId: newUser._id }, { telefono: newUser.telefono }],
+        });
+        if (!existsCliente) {
+          await db.collection("clientes").insertOne({
+            ownerId: owner._id,
+            userId: newUser._id,
+            nombre: newUser.name,
+            telefono: newUser.telefono,
+            creadoEn: now,
+            actualizadoEn: now,
+          });
+        }
+      }
+    } catch (clienteErr) {
+      console.error("No se pudo crear el cliente automáticamente:", clienteErr?.message || clienteErr);
+    }
+
     res.status(201).json({
       message: "Cuenta creada exitosamente. Ya puedes iniciar sesión.",
       user: {
@@ -646,6 +671,31 @@ app.post("/api/auth/google", authLimiter, async (req, res) => {
 
       const result = await db.collection("usuarios").insertOne(user);
       user._id = result.insertedId;
+
+      // Crear cliente automáticamente asociado al administrador suprem
+      try {
+        const owner =
+          (await db.collection("usuarios").findOne({ role: "suprem", username: "jesus" })) ||
+          (await db.collection("usuarios").findOne({ role: "suprem" }));
+        if (owner && assignedPhone && assignedPhone !== "Sin teléfono") {
+          const existsCliente = await db.collection("clientes").findOne({
+            ownerId: owner._id,
+            $or: [{ userId: user._id }, { telefono: assignedPhone }],
+          });
+          if (!existsCliente) {
+            await db.collection("clientes").insertOne({
+              ownerId: owner._id,
+              userId: user._id,
+              nombre: name,
+              telefono: assignedPhone,
+              creadoEn: now,
+              actualizadoEn: now,
+            });
+          }
+        }
+      } catch (clienteErr) {
+        console.error("No se pudo crear el cliente automáticamente:", clienteErr?.message || clienteErr);
+      }
     }
 
     const role = user.role === "suprem" ? "suprem" : "user";

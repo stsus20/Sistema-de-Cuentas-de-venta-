@@ -181,6 +181,18 @@ $("#showLoginBtn").addEventListener("click", () => {
   $("#loginForm").classList.remove("hidden");
 });
 
+// Mostrar/ocultar contraseña (login y registro)
+$$(".toggle-pass").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const input = btn.previousElementSibling;
+    if (!input || input.tagName !== "INPUT") return;
+    const isPass = input.type === "password";
+    input.type = isPass ? "text" : "password";
+    btn.textContent = isPass ? "🙈" : "👁";
+    btn.setAttribute("aria-label", isPass ? "Ocultar contraseña" : "Mostrar contraseña");
+  });
+});
+
 // Envía las credenciales; el servidor responde con la cookie de sesión HttpOnly.
 $("#loginForm").addEventListener("submit", async (event) => {
   event.preventDefault();

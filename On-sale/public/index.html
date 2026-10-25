@@ -56,13 +56,18 @@
               placeholder="Tu usuario o correo"
           /></label>
           <label
-            >Contraseña<input
-              name="password"
-              type="password"
-              autocomplete="current-password"
-              required
-              placeholder="••••••••"
-          /></label>
+            >Contraseña
+            <div class="password-field">
+              <input
+                name="password"
+                type="password"
+                autocomplete="current-password"
+                required
+                placeholder="••••••••"
+              />
+              <button class="toggle-pass" type="button" aria-label="Mostrar u ocultar contraseña">👁</button>
+            </div>
+          </label>
           <button class="primary wide" type="submit">
             Entrar <span>→</span>
           </button>
@@ -118,23 +123,33 @@
               placeholder="juan@ejemplo.com"
           /></label>
           <label
-            >Contraseña <span>(mínimo 8 caracteres)</span><input
-              name="password"
-              type="password"
-              required
-              minlength="8"
-              autocomplete="new-password"
-              placeholder="••••••••"
-          /></label>
+            >Contraseña <span>(mínimo 8 caracteres)</span>
+            <div class="password-field">
+              <input
+                name="password"
+                type="password"
+                required
+                minlength="8"
+                autocomplete="new-password"
+                placeholder="••••••••"
+              />
+              <button class="toggle-pass" type="button" aria-label="Mostrar u ocultar contraseña">👁</button>
+            </div>
+          </label>
           <label
-            >Confirmar contraseña<input
-              name="confirmPassword"
-              type="password"
-              required
-              minlength="8"
-              autocomplete="new-password"
-              placeholder="••••••••"
-          /></label>
+            >Confirmar contraseña
+            <div class="password-field">
+              <input
+                name="confirmPassword"
+                type="password"
+                required
+                minlength="8"
+                autocomplete="new-password"
+                placeholder="••••••••"
+              />
+              <button class="toggle-pass" type="button" aria-label="Mostrar u ocultar contraseña">👁</button>
+            </div>
+          </label>
           <button class="primary wide" type="submit">
             Registrarme <span>→</span>
           </button>
